@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lux Brasil</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+      @keyframes pulse-gold {
+        0% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.7); }
+        70% { box-shadow: 0 0 0 10px rgba(212, 175, 55, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); }
+      }
+
+      @keyframes shimmer {
+        0% { background-position: -200% center; }
+        100% { background-position: 200% center; }
+      }
+
+      @keyframes border-rotate {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+
+      .logo-shimmer {
+        background: linear-gradient(
+          90deg, 
+          #FFFFFF 0%, 
+          #FFFFFF 40%, 
+          #FFD700 50%, 
+          #FFFFFF 60%, 
+          #FFFFFF 100%
+        );
+        background-size: 200% auto;
+        color: #fff;
+        background-clip: text;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: shimmer 8s linear infinite;
+        text-shadow: 0 0 15px rgba(212, 175, 55, 0.6);
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.2.0",
+    "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime",
+    "react-dom": "https://esm.sh/react-dom@18.2.0",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "react-router-dom": "https://esm.sh/react-router-dom@6.21.1?external=react,react-dom",
+    "react-router": "https://esm.sh/react-router@6.21.1?external=react,react-dom",
+    "@remix-run/router": "https://esm.sh/@remix-run/router@1.14.1",
+    "framer-motion": "https://esm.sh/framer-motion@10.18.0?external=react,react-dom",
+    "@mui/icons-material": "https://esm.sh/@mui/icons-material@5.15.3?external=react,react-dom,@mui/material",
+    "react-scroll-parallax": "https://esm.sh/react-scroll-parallax@3.4.5?external=react,react-dom",
+    "@mui/material": "https://esm.sh/@mui/material@5.15.3?external=react,react-dom",
+    "@mui/material/styles": "https://esm.sh/@mui/material@5.15.3/styles?external=react,react-dom",
+    "@mui/material/utils": "https://esm.sh/@mui/material@5.15.3/utils?external=react,react-dom",
+    "@mui/utils": "https://esm.sh/@mui/utils@5.15.3?external=react,react-dom",
+    "@mui/system": "https://esm.sh/@mui/system@5.15.3?external=react,react-dom",
+    "@mui/styled-engine": "https://esm.sh/@mui/styled-engine@5.15.3?external=react,react-dom",
+    "three": "https://esm.sh/three@0.160.0",
+    "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.14?external=react,react-dom,three",
+    "@react-three/drei": "https://esm.sh/@react-three/drei@9.96.1?external=react,react-dom,three,@react-three/fiber",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.3",
+    "zod": "https://esm.sh/zod@3.22.4",
+    "react-hook-form": "https://esm.sh/react-hook-form@7.49.3?external=react,react-dom",
+    "@hookform/resolvers/zod": "https://esm.sh/@hookform/resolvers@3.3.4/zod?external=react,react-hook-form,zod",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "@hookform/resolvers/": "https://esm.sh/@hookform/resolvers@^5.2.2/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body style="margin: 0; padding: 0; background-color: #050510; color: #FFFFFF;">
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
