@@ -1,7 +1,8 @@
+
 import React, { useState } from 'react';
 import { 
   AppBar, Toolbar, Typography, Button, Box, Avatar, Menu, MenuItem, 
-  IconButton, Drawer, List, ListItem, ListItemButton, 
+  IconButton, Drawer, List, ListItemButton, 
   ListItemIcon, ListItemText, Divider, Chip, useScrollTrigger, useTheme, useMediaQuery, Container
 } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -10,7 +11,7 @@ import { useLanguage } from '../hooks/useLanguage';
 import LanguageSelector from './LanguageSelector';
 import { 
   AccountBalanceWallet, EmojiEvents, Menu as MenuIcon, Dashboard as DashboardIcon, 
-  AdminPanelSettings, Logout, Close, MilitaryTech, MonetizationOn, Bolt
+  AdminPanelSettings, Logout, Close, MilitaryTech, Bolt, Storefront, Diamond
 } from '@mui/icons-material';
 
 interface NavigationProps {
@@ -22,7 +23,7 @@ const Navigation: React.FC<NavigationProps> = ({ user, onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useLanguage();
-  const theme = useTheme();
+  const theme = useTheme() as any;
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -43,8 +44,18 @@ const Navigation: React.FC<NavigationProps> = ({ user, onLogout }) => {
 
   const isActive = (path: string) => location.pathname === path;
 
-  // Safe Balance Display
-  const displayBalance = user?.wallet_balance != null ? user.wallet_balance.toFixed(2) : '0.00';
+  // Safe Balance Display (LuxCoins agora)
+  const displayCoins = user?.lux_coins != null ? user.lux_coins : 0;
+
+  // Level Logic
+  let levelBorderColor = '#C0C0C0'; // Default Silver
+  let currentLevel = 1;
+  if (user) {
+      const xp = user.xp || 0;
+      currentLevel = Math.min(Math.floor(xp / 1000) + 1, 15);
+      if (currentLevel >= 6 && currentLevel <= 10) levelBorderColor = '#D4AF37'; // Gold
+      else if (currentLevel >= 11) levelBorderColor = '#E5E4E2'; // Platinum
+  }
 
   // Custom Styled Link Button
   const NavLink = ({ to, icon, label }: { to: string, icon?: React.ReactNode, label: string }) => (
@@ -100,18 +111,38 @@ const Navigation: React.FC<NavigationProps> = ({ user, onLogout }) => {
                             sx={{ 
                                 width: 80, height: 80, 
                                 mx: 'auto', mb: 2,
-                                border: '2px solid #D4AF37',
-                                boxShadow: '0 0 20px rgba(212, 175, 55, 0.4)'
+                                border: `3px solid ${levelBorderColor}`,
+                                boxShadow: `0 0 20px ${levelBorderColor}60`
                             }} 
                         />
-                        <Box sx={{ position: 'absolute', bottom: 15, right: 0, width: 15, height: 15, bgcolor: '#4CAF50', borderRadius: '50%', border: '2px solid #000' }} />
+                        {/* Level Badge Mobile */}
+                        <Box sx={{ 
+                            position: 'absolute', 
+                            bottom: 12, 
+                            right: -5, 
+                            width: 28, 
+                            height: 28, 
+                            bgcolor: levelBorderColor, 
+                            borderRadius: '50%', 
+                            border: '2px solid #000',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#000',
+                            fontWeight: 900,
+                            fontSize: '0.8rem',
+                            zIndex: 2,
+                            boxShadow: '0 0 10px rgba(0,0,0,0.5)'
+                        }}>
+                            {currentLevel}
+                        </Box>
                     </Box>
                     <Typography variant="subtitle1" fontWeight={800} sx={{ letterSpacing: 1 }}>{user.full_name}</Typography>
                     
                     <Box display="flex" justifyContent="center" gap={2} mt={3}>
                         <Chip 
-                            icon={<AccountBalanceWallet sx={{ color: '#000 !important' }} />} 
-                            label={`R$ ${displayBalance}`} 
+                            icon={<Diamond sx={{ color: '#000 !important' }} />} 
+                            label={`${displayCoins} LC`} 
                             sx={{ bgcolor: '#D4AF37', color: '#000', fontWeight: 800 }} 
                         />
                     </Box>
@@ -121,6 +152,10 @@ const Navigation: React.FC<NavigationProps> = ({ user, onLogout }) => {
                     <ListItemButton onClick={() => handleNavClick(PageRoute.DASHBOARD)} sx={{ borderRadius: 2, mb: 1, '&.Mui-selected': { bgcolor: 'rgba(212,175,55,0.1)' } }} selected={isActive(PageRoute.DASHBOARD)}>
                         <ListItemIcon><DashboardIcon sx={{ color: isActive(PageRoute.DASHBOARD) ? '#D4AF37' : 'gray' }} /></ListItemIcon>
                         <ListItemText primary={t('dashboard')} primaryTypographyProps={{ fontWeight: 600 }} />
+                    </ListItemButton>
+                    <ListItemButton onClick={() => handleNavClick(PageRoute.VAULT)} sx={{ borderRadius: 2, mb: 1 }} selected={isActive(PageRoute.VAULT)}>
+                        <ListItemIcon><Storefront sx={{ color: isActive(PageRoute.VAULT) ? '#D4AF37' : 'gray' }} /></ListItemIcon>
+                        <ListItemText primary={t('vault')} primaryTypographyProps={{ fontWeight: 600 }} />
                     </ListItemButton>
                     <ListItemButton onClick={() => handleNavClick(PageRoute.MY_PRIZES)} sx={{ borderRadius: 2, mb: 1 }} selected={isActive(PageRoute.MY_PRIZES)}>
                         <ListItemIcon><EmojiEvents sx={{ color: isActive(PageRoute.MY_PRIZES) ? '#D4AF37' : 'gray' }} /></ListItemIcon>
@@ -167,7 +202,7 @@ const Navigation: React.FC<NavigationProps> = ({ user, onLogout }) => {
         <AppBar 
             position="fixed" 
             sx={{ 
-                bgcolor: trigger ? 'rgba(5, 5, 16, 0.85)' : 'rgba(5, 5, 16, 0.5)',
+                bgcolor: trigger ? 'rgba(5, 5, 16, 0.95)' : 'rgba(5, 5, 16, 0.5)',
                 borderBottom: '1px solid',
                 borderColor: trigger ? 'rgba(212, 175, 55, 0.1)' : 'transparent',
                 backdropFilter: 'blur(16px)',
@@ -183,16 +218,15 @@ const Navigation: React.FC<NavigationProps> = ({ user, onLogout }) => {
         <Box 
             onClick={() => navigate(PageRoute.HOME)}
             sx={{ 
-                display: 'flex', alignItems: 'center', cursor: 'pointer', gap: 0 // Adicione gap: 0
+                display: 'flex', alignItems: 'center', cursor: 'pointer', gap: 0
             }}
         >
-            {/* IMAGEM DA LOGO AUMENTADA */}
             <Box 
                 component="img"
                 src="/logo.png" 
                 alt="Lux Brasil"
                 sx={{ 
-                    height: 165,
+                    height: { xs: 120, md: 165 }, // LOGO RESPONSIVA
                     objectFit: 'contain',
                     filter: 'drop-shadow(0 0 5px rgba(212, 175, 55, 0.3))' 
                 }}
@@ -204,7 +238,8 @@ const Navigation: React.FC<NavigationProps> = ({ user, onLogout }) => {
                     fontFamily: 'Montserrat', 
                     fontWeight: 900, 
                     letterSpacing: 2,
-                    ml: -5 // Margem negativa à esquerda para aproximar
+                    ml: { xs: -3, md: -5 }, // Ajuste margem mobile
+                    fontSize: { xs: '1rem', md: '1.5rem' } // TEXTO LOGO RESPONSIVO
                 }}
             >
                 LUX BRASIL
@@ -217,19 +252,20 @@ const Navigation: React.FC<NavigationProps> = ({ user, onLogout }) => {
                         <>
                             <Box sx={{ display: 'flex', mr: 4, bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 50, px: 2, py: 0.5 }}>
                                 <NavLink to={PageRoute.DASHBOARD} label={t('dashboard')} />
-                                <NavLink to={PageRoute.MY_PRIZES} label={t('myPrizes')} />
+                                <NavLink to={PageRoute.VAULT} label={t('vault')} />
                                 <NavLink to={PageRoute.CHALLENGES} label={t('challenges_tab')} />
                             </Box>
 
-                            {/* PREMIUM WALLET DISPLAY */}
+                            {/* LUX COINS & SPINS DISPLAY */}
                             <Box sx={{ 
                                 display: 'flex', alignItems: 'center', gap: 2, mr: 2,
                                 borderRight: '1px solid rgba(255,255,255,0.1)', pr: 3
                             }}>
                                 <Box sx={{ textAlign: 'right' }}>
-                                    <Typography variant="caption" display="block" color="text.secondary" sx={{ fontSize: '0.6rem', lineHeight: 1 }}>{t('nav_balance')}</Typography>
-                                    <Typography variant="body1" sx={{ fontWeight: 700, color: '#FFF', fontFamily: 'Montserrat' }}>
-                                        R$ <span style={{ color: '#D4AF37' }}>{displayBalance}</span>
+                                    <Typography variant="caption" display="block" color="text.secondary" sx={{ fontSize: '0.6rem', lineHeight: 1 }}>{t('lux_coins')}</Typography>
+                                    <Typography variant="body1" sx={{ fontWeight: 700, color: '#FFF', fontFamily: 'Montserrat', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
+                                        <Diamond sx={{ fontSize: 16, color: '#D4AF37' }} />
+                                        <span style={{ color: '#D4AF37' }}>{displayCoins}</span>
                                     </Typography>
                                 </Box>
                                 
@@ -255,17 +291,38 @@ const Navigation: React.FC<NavigationProps> = ({ user, onLogout }) => {
 
                             <LanguageSelector />
 
-                            {/* PROFILE */}
+                            {/* PROFILE DESKTOP */}
                             <Box onClick={handleDesktopMenu} sx={{ cursor: 'pointer', ml: 2, position: 'relative' }}>
                                 <Avatar 
                                     src={avatarUrl}
                                     sx={{ 
                                         bgcolor: '#000', width: 44, height: 44, 
-                                        border: '2px solid rgba(212, 175, 55, 0.5)',
+                                        border: `2px solid ${levelBorderColor}`,
+                                        boxShadow: `0 0 10px ${levelBorderColor}40`,
                                         transition: 'border-color 0.2s',
                                         '&:hover': { borderColor: '#D4AF37' }
                                     }}
                                 />
+                                {/* Level Badge Desktop */}
+                                <Box sx={{ 
+                                    position: 'absolute', 
+                                    bottom: -2, 
+                                    right: -4, 
+                                    width: 18, 
+                                    height: 18, 
+                                    bgcolor: levelBorderColor, 
+                                    borderRadius: '50%', 
+                                    border: '1px solid #000',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: '#000',
+                                    fontWeight: 900,
+                                    fontSize: '0.6rem',
+                                    zIndex: 2
+                                }}>
+                                    {currentLevel}
+                                </Box>
                             </Box>
 
                             <Menu 
@@ -291,6 +348,9 @@ const Navigation: React.FC<NavigationProps> = ({ user, onLogout }) => {
                                     <Typography variant="body2" fontWeight={600} noWrap>{user.email}</Typography>
                                 </Box>
                                 <Divider sx={{ bgcolor: 'rgba(255,255,255,0.1)', my: 1 }} />
+                                <MenuItem onClick={() => { navigate(PageRoute.MY_PRIZES); setAnchorEl(null); }}>
+                                    <AccountBalanceWallet fontSize="small" sx={{ mr: 1.5 }} /> {t('myPrizes')}
+                                </MenuItem>
                                 {user.is_admin && <MenuItem onClick={() => { navigate(PageRoute.ADMIN); setAnchorEl(null); }} sx={{ color: '#ff6666' }}><AdminPanelSettings fontSize="small" sx={{ mr: 1.5 }} /> {t('admin')}</MenuItem>}
                                 <MenuItem onClick={() => { onLogout(); setAnchorEl(null); }} sx={{ '&:hover': { color: '#D4AF37' } }}>
                                     <Logout fontSize="small" sx={{ mr: 1.5 }} /> {t('logout')}

@@ -52,13 +52,14 @@ export const useRouletteTimer = (initialTimer: string | null | undefined) => {
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   };
 
-  const claimSpin = async () => {
+  const claimSpin = async (onSuccess?: () => void) => {
     try {
       const { data, error } = await supabase.rpc('check_and_add_timer_spin');
       if (error) throw error;
       if (data?.spin_added) {
         setCanClaim(false);
-        window.location.reload();
+        // Chama callback para atualizar UI sem reload
+        if (onSuccess) onSuccess();
       }
     } catch (error) {
       console.error('Erro ao reclamar giro:', error);

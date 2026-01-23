@@ -6,7 +6,9 @@ export interface UserProfile {
   cpf: string;
   phone: string;
   available_spins: number; // Mapped from spins_remaining in DB
-  wallet_balance: number;
+  wallet_balance: number; // Mantido para legado, mas visualmente usaremos lux_coins
+  lux_coins: number; // Nova moeda
+  xp: number; // Para nível VIP
   is_admin: boolean;
   referral_code: string; // Legacy frontend name, mapped from invite_code
   created_at?: string;
@@ -17,6 +19,9 @@ export interface UserProfile {
   invite_earnings?: number; // Agora representa Giros ganhos por convite
   roulette_timer?: string;
   spins_remaining?: number;
+  // Login Tracking
+  login_count?: number;
+  last_login?: string;
   // Admin fields
   ip_address?: string;
   is_banned?: boolean;
@@ -39,6 +44,7 @@ export interface SpinResult {
   redemption_code: string;
   remaining_spins: number;
   wallet_balance: number;
+  lux_coins?: number; // Opcional no retorno
 }
 
 export interface WinnerLog {
@@ -52,6 +58,16 @@ export interface WinnerLog {
   timestamp: string;
   status: 'pending' | 'requested' | 'redeemed' | 'paid';
   redemption_code?: string;
+}
+
+// Interface estendida para o Admin ver detalhes do usuário na solicitação
+export interface AdminRedemptionRequest extends WinnerLog {
+  user_details: {
+    full_name: string;
+    cpf: string;
+    phone: string;
+    ip_address?: string;
+  };
 }
 
 export type Language = 'pt' | 'en' | 'zh';
@@ -69,6 +85,7 @@ export enum PageRoute {
   DASHBOARD = '/dashboard',
   MY_PRIZES = '/my-prizes',
   CHALLENGES = '/challenges',
+  VAULT = '/vault', // Nova rota
   ADMIN = '/admin',
   LEGAL_PRIVACY = '/legal/privacy',
   LEGAL_TERMS = '/legal/terms',
@@ -85,11 +102,14 @@ export interface Challenge {
   reward_type: 'spins' | 'money' | 'both';
   reward_spins: number;
   reward_money: number;
+  reward_xp: number; // Novo campo XP
   verification_type: string;
   icon: string;
   progress?: number;
   status?: string;
   active: boolean;
+  goal?: number;
+  current_value?: number;
 }
 
 export interface Referral {

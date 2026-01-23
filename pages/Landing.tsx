@@ -1,9 +1,10 @@
+
 import React from 'react';
 import { Box, Container, Typography, Button, Grid, Paper, Stack } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { PageRoute } from '../types';
 import { useLanguage } from '../hooks/useLanguage';
-import { Diamond, Security, Speed, Casino, VerifiedUser, Star } from '@mui/icons-material';
+import { Diamond, Security, Speed, Casino, VerifiedUser, Star, Handshake } from '@mui/icons-material';
 
 const Landing: React.FC = () => {
   const navigate = useNavigate();
@@ -58,10 +59,45 @@ const Landing: React.FC = () => {
                 </Typography>
             </Box>
 
+            {/* PARTNER HIGHLIGHT (UPDATED STYLE) */}
+            <Box display="flex" justifyContent="center" mb={4}>
+                 <Box 
+                    display="inline-flex" 
+                    alignItems="center" 
+                    justifyContent="center"
+                    gap={2}
+                    sx={{ 
+                        px: 3, py: 1, 
+                        borderRadius: 50, 
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        background: 'linear-gradient(90deg, rgba(212,175,55,0.1) 0%, rgba(0, 230, 118, 0.1) 100%)',
+                        boxShadow: '0 0 30px rgba(0,0,0,0.3)',
+                        backdropFilter: 'blur(5px)'
+                    }}
+                >
+                    <Typography variant="caption" color="primary" sx={{ letterSpacing: 2, fontWeight: 700, lineHeight: 1 }}>
+                        LUX BRASIL
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', color: '#555', fontSize: '0.8rem' }}>
+                        <Handshake fontSize="small" />
+                    </Box>
+                    <Typography variant="caption" sx={{ 
+                        color: '#00E676', 
+                        letterSpacing: 2, 
+                        fontWeight: 900, 
+                        lineHeight: 1, 
+                        textShadow: '0 0 10px #00E676, 0 0 20px rgba(0, 230, 118, 0.6)' // Neon Effect
+                    }}>
+                        WG
+                    </Typography>
+                </Box>
+            </Box>
+
             <Typography variant="h1" sx={{ 
                 fontFamily: 'Montserrat', 
                 fontWeight: 900, 
-                fontSize: { xs: '3.5rem', md: '6rem' }, 
+                // FONTE RESPONSIVA CORRIGIDA
+                fontSize: { xs: '3rem', sm: '4rem', md: '6rem' }, 
                 lineHeight: 1,
                 mb: 2,
                 textTransform: 'uppercase',
@@ -81,12 +117,13 @@ const Landing: React.FC = () => {
                 fontWeight: 400, 
                 lineHeight: 1.6, 
                 mb: 6,
-                fontSize: { xs: '1rem', md: '1.25rem' }
+                fontSize: { xs: '0.9rem', md: '1.25rem' },
+                px: 2
             }}>
                 A experiência definitiva em sorteios de luxo. Cadastre-se, gire a roleta exclusiva e conquiste prêmios reais instantaneamente com total segurança.
             </Typography>
 
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3} justifyContent="center">
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3} justifyContent="center" alignItems="center">
                 <Button 
                     variant="contained" 
                     size="large" 
@@ -94,6 +131,7 @@ const Landing: React.FC = () => {
                     sx={{ 
                         px: 6, py: 2, 
                         fontSize: '1.1rem', 
+                        width: { xs: '100%', sm: 'auto' }, // Full width no mobile
                         borderRadius: 50,
                         background: 'linear-gradient(90deg, #D4AF37 0%, #F3E5AB 50%, #D4AF37 100%)',
                         color: '#000',
@@ -111,6 +149,7 @@ const Landing: React.FC = () => {
                     sx={{ 
                         px: 6, py: 2, 
                         fontSize: '1.1rem', 
+                        width: { xs: '100%', sm: 'auto' },
                         borderRadius: 50,
                         borderColor: 'rgba(255,255,255,0.2)',
                         color: '#FFF',
@@ -133,27 +172,33 @@ const Landing: React.FC = () => {
       {/* --- FEATURES SECTION --- */}
       <Box sx={{ py: 15, position: 'relative', bgcolor: '#08090F' }}>
           <Container maxWidth="lg">
-              <Box textAlign="center" mb={10}>
+              <Box textAlign="center" mb={10} px={2}>
                   <Typography variant="overline" color="primary" sx={{ letterSpacing: 3, fontWeight: 700 }}>POR QUE A LUX BRASIL?</Typography>
-                  <Typography variant="h2" sx={{ mt: 1, fontFamily: 'Montserrat', fontWeight: 800 }}>Exclusividade em <span style={{ color: '#D4AF37' }}>Cada Detalhe</span></Typography>
+                  <Typography variant="h2" sx={{ 
+                      mt: 1, 
+                      fontFamily: 'Montserrat', 
+                      fontWeight: 800,
+                      // FONTE RESPONSIVA
+                      fontSize: { xs: '2.5rem', md: '3.75rem' }
+                  }}>Exclusividade em <span style={{ color: '#D4AF37', display: 'inline-block' }}>Cada Detalhe</span></Typography>
               </Box>
 
               <Grid container spacing={4}>
-                  <Grid item xs={12} md={4}>
+                  <Grid xs={12} md={4}>
                       <FeatureCard 
                           icon={<Speed sx={{ fontSize: 50 }} />}
                           title="Acesso Imediato"
                           desc="Sem espera. Cadastre-se e receba seu primeiro giro gratuito instantaneamente para começar a ganhar."
                       />
                   </Grid>
-                  <Grid item xs={12} md={4}>
+                  <Grid xs={12} md={4}>
                       <FeatureCard 
                           icon={<Diamond sx={{ fontSize: 50 }} />}
                           title="Prêmios"
-                          desc="De experiências gastronômicas a produtos exclusivos, ou PIX na conta. Escolha sem erro."
+                          desc="De experiências gastronômicas a produtos exclusivos, ou LuxCoins. Escolha sem erro."
                       />
                   </Grid>
-                  <Grid item xs={12} md={4}>
+                  <Grid xs={12} md={4}>
                       <FeatureCard 
                           icon={<Security sx={{ fontSize: 50 }} />}
                           title="Segurança de Elite"
@@ -168,7 +213,7 @@ const Landing: React.FC = () => {
       <Box sx={{ py: 12, background: 'linear-gradient(180deg, #08090F 0%, #000 100%)', borderTop: '1px solid #222' }}>
           <Container maxWidth="md" sx={{ textAlign: 'center' }}>
               <Casino sx={{ fontSize: 80, color: '#D4AF37', mb: 3, opacity: 0.8 }} />
-              <Typography variant="h3" gutterBottom sx={{ fontFamily: 'Montserrat', fontWeight: 800 }}>
+              <Typography variant="h3" gutterBottom sx={{ fontFamily: 'Montserrat', fontWeight: 800, fontSize: { xs: '2rem', md: '3rem' } }}>
                   Pronto para a sua sorte mudar?
               </Typography>
               <Typography variant="body1" color="text.secondary" sx={{ mb: 5 }}>
@@ -206,8 +251,8 @@ const Landing: React.FC = () => {
 };
 
 const StatBox = ({ number, label }: { number: string, label: string }) => (
-    <Grid item xs={6} md={3}>
-        <Typography variant="h3" sx={{ fontWeight: 800, color: '#D4AF37' }}>{number}</Typography>
+    <Grid xs={6} md={3}>
+        <Typography variant="h3" sx={{ fontWeight: 800, color: '#D4AF37', fontSize: { xs: '2rem', md: '3rem' } }}>{number}</Typography>
         <Typography variant="caption" sx={{ color: '#888', letterSpacing: 1 }}>{label}</Typography>
     </Grid>
 );

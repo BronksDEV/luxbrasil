@@ -5,6 +5,7 @@ import { ThemeProvider, CssBaseline } from '@mui/material';
 import { ParallaxProvider } from 'react-scroll-parallax';
 import App from './App';
 import { theme } from './constants';
+import { AuthProvider } from './contexts/AuthContext';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -18,7 +19,9 @@ root.render(
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <ParallaxProvider>
-          <App />
+          <AuthProvider>
+            <App />
+          </AuthProvider>
         </ParallaxProvider>
       </ThemeProvider>
     </HashRouter>

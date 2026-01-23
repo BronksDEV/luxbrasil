@@ -1,10 +1,11 @@
 import React from 'react';
-import { Box, Card, Typography, Button, Chip, Divider } from '@mui/material';
-import { AccessTime, Casino, AccountBalanceWallet, VerifiedUser } from '@mui/icons-material';
+import { Box, Typography, Button, Chip } from '@mui/material';
+import { Wallet, VerifiedUser } from '@mui/icons-material';
 import { useRouletteTimer } from '../hooks/useRouletteTimer';
 import { useNavigate } from 'react-router-dom';
 import { PageRoute } from '../types';
 import { useLanguage } from '../hooks/useLanguage';
+import { useAuth } from '../contexts/AuthContext';
 
 interface RouletteTimerProps {
   timerDate: string | null | undefined;
@@ -13,12 +14,18 @@ interface RouletteTimerProps {
 
 const RouletteTimer: React.FC<RouletteTimerProps> = ({ timerDate, spinsRemaining }) => {
   const { t } = useLanguage();
+  const { refreshUser } = useAuth();
   const { formatTime, canClaim, claimSpin } = useRouletteTimer(timerDate);
   const navigate = useNavigate();
 
+  const handleClaim = () => {
+      claimSpin(() => {
+          refreshUser();
+      });
+  };
+
   return (
     <Box sx={{ position: 'relative', mb: 4 }}>
-        {/* Glow Background */}
         <Box sx={{
             position: 'absolute',
             inset: 0,
@@ -28,7 +35,6 @@ const RouletteTimer: React.FC<RouletteTimerProps> = ({ timerDate, spinsRemaining
             zIndex: 0
         }} />
 
-        {/* Main Card Container */}
         <Box sx={{
             position: 'relative',
             background: 'linear-gradient(145deg, #0F121D 0%, #050510 100%)',
@@ -38,7 +44,6 @@ const RouletteTimer: React.FC<RouletteTimerProps> = ({ timerDate, spinsRemaining
             zIndex: 1,
             boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
         }}>
-            {/* Header Strip */}
             <Box sx={{ 
                 p: 2, 
                 borderBottom: '1px solid rgba(255,255,255,0.05)', 
@@ -67,7 +72,6 @@ const RouletteTimer: React.FC<RouletteTimerProps> = ({ timerDate, spinsRemaining
             </Box>
 
             <Box sx={{ p: 3, textAlign: 'center' }}>
-                {/* Spins Counter Block */}
                 <Box sx={{ 
                     mb: 3, 
                     p: 2, 
@@ -99,14 +103,12 @@ const RouletteTimer: React.FC<RouletteTimerProps> = ({ timerDate, spinsRemaining
                     </Box>
                 </Box>
 
-                {/* Timer Section */}
                 {spinsRemaining === 0 ? (
                     <Box sx={{ position: 'relative', py: 2 }}>
                          <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 2, mb: 1, display: 'block' }}>
                             {t('next_refill_in')}
                          </Typography>
                          
-                         {/* Digital Clock Effect */}
                          <Typography variant="h3" sx={{ 
                              fontFamily: 'monospace', 
                              fontWeight: 700, 
@@ -122,7 +124,7 @@ const RouletteTimer: React.FC<RouletteTimerProps> = ({ timerDate, spinsRemaining
                                 variant="contained" 
                                 fullWidth 
                                 size="large" 
-                                onClick={claimSpin} 
+                                onClick={handleClaim} 
                                 sx={{ 
                                     mt: 3,
                                     fontWeight: 900, 
@@ -163,16 +165,16 @@ const RouletteTimer: React.FC<RouletteTimerProps> = ({ timerDate, spinsRemaining
                 )}
             </Box>
 
-            {/* Footer Button */}
             <Box sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.3)' }}>
                 <Button 
                     fullWidth 
-                    startIcon={<AccountBalanceWallet />}
+                    startIcon={<Wallet />} 
                     onClick={() => navigate(PageRoute.MY_PRIZES)}
                     sx={{ 
                         color: '#FFF', 
                         opacity: 0.7, 
-                        '&:hover': { opacity: 1, background: 'rgba(255,255,255,0.05)' } 
+                        fontWeight: 700,
+                        '&:hover': { opacity: 1, background: 'rgba(255,255,255,0.05)', color: '#D4AF37' } 
                     }}
                 >
                     {t('open_wallet')}

@@ -17,6 +17,8 @@ let MOCK_USER: UserProfile = {
   phone: '11999999999',
   available_spins: 2,
   wallet_balance: 0,
+  lux_coins: 100,
+  xp: 500,
   is_admin: true,
   referral_code: 'LUX-ALEX'
 };

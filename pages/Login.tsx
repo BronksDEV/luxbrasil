@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Box, TextField, Button, Typography, Container, Paper, Link, InputAdornment, IconButton, Alert, CircularProgress } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useLanguage } from '../hooks/useLanguage';
 import { api } from '../services/api';
 import { PageRoute, UserProfile } from '../types';
@@ -13,11 +14,36 @@ interface LoginProps {
 const Login: React.FC<LoginProps> = ({ setUser }) => {
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation(); 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Verifica erros vindos da confirmação de email (URL Hash ou LocalStorage)
+  useEffect(() => {
+    // 1. Tenta ler do LocalStorage (definido no App.tsx para contornar o HashRouter)
+    const storedError = localStorage.getItem('auth_error');
+    if (storedError) {
+        // Se a mensagem for genérica de servidor, melhoramos ela
+        if (storedError.includes('unexpected_failure') || storedError.includes('Database error')) {
+            setError("Ocorreu um conflito ao criar sua conta (CPF ou Telefone já em uso). Tente fazer login ou contate o suporte.");
+        } else {
+            setError(storedError);
+        }
+        localStorage.removeItem('auth_error'); // Limpa para não mostrar sempre
+        return;
+    }
+
+    // 2. Fallback: Tenta ler da URL (caso o router não tenha limpado)
+    const hash = location.hash;
+    if (hash.includes('error=')) {
+        const params = new URLSearchParams(hash.replace('#', '?'));
+        const errorDesc = params.get('error_description');
+        if (errorDesc) setError(decodeURIComponent(errorDesc));
+    }
+  }, [location]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,7 +56,11 @@ const Login: React.FC<LoginProps> = ({ setUser }) => {
       navigate(PageRoute.DASHBOARD);
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "Credenciais inválidas ou erro de conexão.");
+      if (err.message.includes('Perfil não encontrado')) {
+          setError("Erro de permissão: Sua conta existe, mas o sistema não conseguiu carregar o perfil. Contate o administrador.");
+      } else {
+          setError(err.message || "Credenciais inválidas ou erro de conexão.");
+      }
     } finally {
       setLoading(false);
     }
@@ -41,7 +71,7 @@ const Login: React.FC<LoginProps> = ({ setUser }) => {
       minHeight: '100vh', 
       display: 'flex', 
       alignItems: 'center',
-      justifyContent: 'center',
+      justifyContent: 'center', 
       position: 'relative',
       overflow: 'hidden',
       bgcolor: '#050510'

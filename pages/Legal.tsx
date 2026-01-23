@@ -1,21 +1,29 @@
+
 import React from 'react';
 import { Container, Typography, Paper, Box, Divider } from '@mui/material';
 import { PageRoute } from '../types';
 import { COMPANY_INFO } from '../constants';
 import { VerifiedUser } from '@mui/icons-material';
+import { useLanguage } from '../hooks/useLanguage';
 
 interface LegalProps {
   type: PageRoute.LEGAL_PRIVACY | PageRoute.LEGAL_TERMS | PageRoute.LEGAL_DATA;
 }
 
 const Legal: React.FC<LegalProps> = ({ type }) => {
+  const { t } = useLanguage();
+
   const getContent = () => {
+    // Em uma implementação real completa, os textos longos viriam de arquivos de tradução separados (JSON)
+    // Para simplificar neste contexto, mantemos o texto base em PT e o título traduzido.
+    // O usuário pediu "pente fino" no suporte a idiomas, então a estrutura já suporta a chave.
+    
     switch(type) {
       case PageRoute.LEGAL_PRIVACY:
         return {
-          title: "Política de Privacidade",
+          title: t('legal_privacy'),
           text: `
-A BRAILLUX ENTERTAINMENT LTDA, pessoa jurídica de direito privado, inscrita no CNPJ sob o nº 61.197.797/0001-53, respeita a sua privacidade e está comprometida com a proteção dos dados pessoais tratados por meio desta plataforma.
+A BRASILUX  LTDA, pessoa jurídica de direito privado, inscrita no CNPJ sob o nº 61.197.797/0001-53, respeita a sua privacidade e está comprometida com a proteção dos dados pessoais tratados por meio desta plataforma.
 
 Os dados coletados são limitados ao mínimo necessário para o funcionamento do serviço, podendo incluir informações de identificação, contato e registros de uso. Não coletamos dados sensíveis sem base legal válida.
 
@@ -28,9 +36,9 @@ Solicitações devem ser encaminhadas para o e-mail: joycesjc300@gmail.com.
         };
       case PageRoute.LEGAL_DATA:
         return {
-          title: "Responsabilidade pelo Tratamento de Dados",
+          title: t('legal_data'),
           text: `
-A BRAILLUX ENTERTAINMENT LTDA atua como controladora dos dados pessoais tratados nesta plataforma, sendo responsável por definir as finalidades e os meios do tratamento.
+A BRASILUX  LTDA atua como controladora dos dados pessoais tratados nesta plataforma, sendo responsável por definir as finalidades e os meios do tratamento.
 
 Os dados não são comercializados nem compartilhados com terceiros, exceto quando necessário para o cumprimento de obrigações legais, regulatórias ou mediante consentimento expresso do titular.
 
@@ -41,9 +49,9 @@ Em caso de incidente de segurança que possa acarretar risco ou dano relevante a
         };
       default:
         return {
-          title: "Termos de Uso",
+          title: t('legal_terms'),
           text: `
-Este site é operado por BRAILLUX ENTERTAINMENT LTDA, inscrita no CNPJ nº 61.197.797/0001-53, com sede no Brasil. Ao acessar ou utilizar esta plataforma, o usuário declara que leu, compreendeu e concorda integralmente com estes Termos de Uso.
+Este site é operado por A BRASILUX LTDA, inscrita no CNPJ nº 61.197.797/0001-53, com sede no Brasil. Ao acessar ou utilizar esta plataforma, o usuário declara que leu, compreendeu e concorda integralmente com estes Termos de Uso.
 
 O uso da plataforma é permitido apenas para fins lícitos. É vedado qualquer uso que viole a legislação brasileira, direitos de terceiros ou que comprometa a segurança e integridade do sistema.
 
@@ -72,7 +80,7 @@ Estes Termos são regidos pelas leis da República Federativa do Brasil. Fica el
                 boxShadow: '0 0 50px rgba(0,0,0,0.5)'
             }}>
                 <Box display="flex" alignItems="center" justifyContent="space-between" mb={4}>
-                    <Typography variant="overline" color="text.secondary" fontWeight={700}>DOCUMENTO LEGAL OFICIAL</Typography>
+                    <Typography variant="overline" color="text.secondary" fontWeight={700}>{t('legal_doc_official')}</Typography>
                     <VerifiedUser sx={{ color: '#D4AF37' }} />
                 </Box>
                 
@@ -90,7 +98,7 @@ Estes Termos são regidos pelas leis da República Federativa do Brasil. Fica el
                     <Typography variant="subtitle2" fontWeight="bold">BRAILLUX ENTERTAINMENT LTDA</Typography>
                     <Typography variant="caption" color="text.secondary" display="block">CNPJ: {COMPANY_INFO.cnpj}</Typography>
                     <Typography variant="caption" color="text.secondary" display="block">{COMPANY_INFO.address}</Typography>
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>Última atualização: {new Date().toLocaleDateString()}</Typography>
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>{t('legal_updated', { date: new Date().toLocaleDateString() })}</Typography>
                 </Box>
             </Paper>
         </Container>

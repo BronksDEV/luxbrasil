@@ -18,7 +18,7 @@ const isValidCPFFormat = (cpf: string) => {
 const registerSchema = z.object({
   full_name: z.string().min(3, "Nome muito curto"),
   cpf: z.string().refine(isValidCPFFormat, "Formato de CPF inválido"),
-  phone: z.string().min(10, "Telefone inválido"),
+  phone: z.string().regex(/^\d{11}$/, "Telefone deve ter 11 dígitos (DDD + 9 + número). Ex: 61999999999"),
   email: z.string().email("Email inválido"),
   password: z.string().min(6, "Mínimo 6 caracteres"),
   confirmPassword: z.string(),
@@ -154,7 +154,7 @@ const Register: React.FC<RegisterProps> = ({ setUser }) => {
                 
                 <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }}>
                     <TextField margin="normal" required fullWidth label={t('cpf_label')} placeholder="000.000.000-00" {...register('cpf')} error={!!errors.cpf} helperText={errors.cpf?.message} sx={inputStyle} />
-                    <TextField margin="normal" required fullWidth label={t('phone_label')} {...register('phone')} error={!!errors.phone} helperText={errors.phone?.message} sx={inputStyle} />
+                    <TextField margin="normal" required fullWidth label={t('phone_label')} placeholder="61999999999" {...register('phone')} error={!!errors.phone} helperText={errors.phone?.message} sx={inputStyle} />
                 </Box>
                 
                 <TextField margin="normal" required fullWidth label="E-mail" {...register('email')} error={!!errors.email} helperText={errors.email?.message} sx={inputStyle} />
