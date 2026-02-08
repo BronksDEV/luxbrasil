@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Box, TextField, Button, Typography, Container, Paper, InputAdornment, IconButton, Alert, CircularProgress } from '@mui/material';
 import { useForm } from 'react-hook-form';
@@ -16,9 +17,9 @@ const isValidCPFFormat = (cpf: string) => {
 };
 
 const registerSchema = z.object({
-  full_name: z.string().min(3, "Nome muito curto"),
+  full_name: z.string().min(3, "Nome muito curto").refine(val => val.trim().split(/\s+/).length >= 2, "Digite seu nome completo (Nome e Sobrenome)"),
   cpf: z.string().refine(isValidCPFFormat, "Formato de CPF inválido"),
-  phone: z.string().regex(/^\d{11}$/, "Telefone deve ter 11 dígitos (DDD + 9 + número). Ex: 61999999999"),
+  phone: z.string().min(14, "Telefone incompleto").max(15, "Telefone inválido"), // Aceita (XX) 9XXXX-XXXX
   email: z.string().email("Email inválido"),
   password: z.string().min(6, "Mínimo 6 caracteres"),
   confirmPassword: z.string(),
@@ -42,7 +43,7 @@ const Register: React.FC<RegisterProps> = ({ setUser }) => {
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<boolean>(false);
   
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<RegisterFormData>({
+  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
         inviteCode: searchParams.get('code') || '',
@@ -53,11 +54,15 @@ const Register: React.FC<RegisterProps> = ({ setUser }) => {
   const onSubmit = async (data: RegisterFormData) => {
     setGlobalError(null);
     try {
+      // Remove formatação para enviar para a API (mantém apenas números)
+      const cleanPhone = data.phone.replace(/\D/g, '');
+      const cleanCpf = data.cpf.replace(/\D/g, '');
+
       const user = await api.auth.register({
-        full_name: data.full_name,
+        full_name: data.full_name.toUpperCase(),
         email: data.email,
-        cpf: data.cpf,
-        phone: data.phone,
+        cpf: cleanCpf,
+        phone: cleanPhone,
         password: data.password,
         inviteCode: data.inviteCode,
         honeypot: data.website // Envia o valor do honeypot para a API verificar
@@ -71,6 +76,28 @@ const Register: React.FC<RegisterProps> = ({ setUser }) => {
           setGlobalError(error.message || "Erro ao criar conta.");
       }
     }
+  };
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      // Força caixa alta
+      const upper = e.target.value.toUpperCase();
+      setValue('full_name', upper, { shouldValidate: true });
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      let value = e.target.value.replace(/\D/g, "");
+      
+      // Máscara (DD) 9XXXX-XXXX
+      if (value.length > 11) value = value.substring(0, 11);
+      
+      if (value.length > 2) {
+          value = `(${value.substring(0, 2)}) ${value.substring(2)}`;
+      }
+      if (value.length > 10) {
+          value = `${value.substring(0, 10)}-${value.substring(10)}`;
+      }
+      
+      setValue('phone', value, { shouldValidate: true });
   };
 
   const inputStyle = {
@@ -150,11 +177,43 @@ const Register: React.FC<RegisterProps> = ({ setUser }) => {
                     autoComplete="off"
                 />
 
-                <TextField margin="normal" required fullWidth label={t('name_label')} {...register('full_name')} error={!!errors.full_name} helperText={errors.full_name?.message} sx={inputStyle} />
+                <TextField 
+                    margin="normal" 
+                    required 
+                    fullWidth 
+                    label={t('name_label')} 
+                    placeholder="NOME COMPLETO"
+                    {...register('full_name')} 
+                    onChange={handleNameChange} // Sobrescreve onChange do register
+                    error={!!errors.full_name} 
+                    helperText={errors.full_name?.message} 
+                    sx={inputStyle} 
+                />
                 
                 <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }}>
-                    <TextField margin="normal" required fullWidth label={t('cpf_label')} placeholder="000.000.000-00" {...register('cpf')} error={!!errors.cpf} helperText={errors.cpf?.message} sx={inputStyle} />
-                    <TextField margin="normal" required fullWidth label={t('phone_label')} placeholder="61999999999" {...register('phone')} error={!!errors.phone} helperText={errors.phone?.message} sx={inputStyle} />
+                    <TextField 
+                        margin="normal" 
+                        required 
+                        fullWidth 
+                        label={t('cpf_label')} 
+                        placeholder="000.000.000-00" 
+                        {...register('cpf')} 
+                        error={!!errors.cpf} 
+                        helperText={errors.cpf?.message} 
+                        sx={inputStyle} 
+                    />
+                    <TextField 
+                        margin="normal" 
+                        required 
+                        fullWidth 
+                        label={t('phone_label')} 
+                        placeholder="(DDD) 9XXXX-XXXX" 
+                        {...register('phone')} 
+                        onChange={handlePhoneChange} // Sobrescreve onChange do register para máscara
+                        error={!!errors.phone} 
+                        helperText={errors.phone?.message} 
+                        sx={inputStyle} 
+                    />
                 </Box>
                 
                 <TextField margin="normal" required fullWidth label="E-mail" {...register('email')} error={!!errors.email} helperText={errors.email?.message} sx={inputStyle} />

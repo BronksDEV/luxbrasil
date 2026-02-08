@@ -1,22 +1,28 @@
+
 import React, { useState } from 'react';
-import { Box, Container, Typography, Paper, Grid, Button, CircularProgress, Alert, Chip } from '@mui/material';
+import { Box, Container, Typography, Paper, Button, CircularProgress, Alert, Chip, Grid } from '@mui/material';
 import { Diamond, Handshake } from '@mui/icons-material';
 import { useLanguage } from '../hooks/useLanguage';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useThemeConfig } from '../contexts/ThemeContext';
 
 const getStoreItems = (t: any) => [
-    { id: 'spin-pack-1', name: t('store_item_spin_name'), description: t('store_item_spin_desc'), cost: 100, type: 'spins' as const, image: 'giro.jpg', highlight: false, label: t('label_virtual') },
-    { id: 'FOO36-BRA', name: t('store_item_headphone_name'), description: t('store_item_headphone_desc'), cost: 1000, type: 'physical' as const, image: 'fone1.jpg', highlight: true, label: t('label_physical') },
-    { id: 'FOO42-BRA', name: t('store_item_earbuds_name'), description: t('store_item_earbuds_desc'), cost: 1500, type: 'physical' as const, image: 'fone2.jpg', highlight: true, label: t('label_physical') },
-    { id: 'CASH-500', name: t('store_item_money_name'), description: t('store_item_money_desc', { amount: '500,00' }), cost: 3500, type: 'money' as const, moneyValue: 500, image: 'pix.jpg', highlight: true, label: t('label_money') }
+    { id: 'spin-pack-1', name: t('store_item_spin_name'), description: t('store_item_spin_desc'), cost: 100, type: 'spins' as const, image: 'https://images.unsplash.com/photo-1605901309584-818e25960b8f?q=80&w=1000&auto=format&fit=crop', highlight: false, label: t('label_virtual') },
+    { id: 'FOO36-BRA', name: t('store_item_headphone_name'), description: t('store_item_headphone_desc'), cost: 1000, type: 'physical' as const, image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1000&auto=format&fit=crop', highlight: true, label: t('label_physical') },
+    { id: 'FOO42-BRA', name: t('store_item_earbuds_name'), description: t('store_item_earbuds_desc'), cost: 1500, type: 'physical' as const, image: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?q=80&w=1000&auto=format&fit=crop', highlight: true, label: t('label_physical') },
+    { id: 'CASH-500', name: t('store_item_money_name'), description: t('store_item_money_desc', { amount: '500,00' }), cost: 3500, type: 'money' as const, moneyValue: 500, image: 'https://images.unsplash.com/photo-1580519542036-c47de6196ba5?q=80&w=1000&auto=format&fit=crop', highlight: true, label: t('label_money') }
 ];
 
 const Vault: React.FC = () => {
   const { t } = useLanguage();
   const { user, refreshUser } = useAuth();
+  const { themeConfig } = useThemeConfig();
   const [loading, setLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<{type: 'success'|'error', text: string}|null>(null);
+  
+  const isCarnival = themeConfig.active && themeConfig.name === 'carnival';
+  const themeColor = isCarnival ? '#9C27B0' : '#D4AF37';
   
   const items = getStoreItems(t);
 
@@ -47,18 +53,50 @@ const Vault: React.FC = () => {
                     <Box sx={{ display: 'flex', alignItems: 'center', color: '#555', fontSize: '0.8rem' }}><Handshake fontSize="small" /></Box>
                     <Typography variant="overline" sx={{ color: '#00E676', letterSpacing: 2, fontWeight: 900, lineHeight: 1, textShadow: '0 0 10px rgba(0, 230, 118, 0.4)' }}>WG</Typography>
                 </Box>
-                <Typography variant="h3" sx={{ fontFamily: 'Montserrat', fontWeight: 900, color: '#FFF' }}>{t('vault_title')}</Typography>
+                <Typography variant="h3" sx={{ fontFamily: 'Montserrat', fontWeight: 900, color: '#FFF' }}>{t('vault_title')}
+                </Typography>
                 <Typography variant="body1" color="text.secondary" mt={2}>{t('vault_subtitle')}</Typography>
                 {user && (
-                    <Chip icon={<Diamond sx={{ color: '#000 !important' }} />} label={`${t('wallet').toUpperCase()}: ${user.lux_coins} LC`} sx={{ mt: 3, bgcolor: '#D4AF37', color: '#000', fontWeight: 800, fontSize: '1rem', px: 2, py: 2.5, borderRadius: 50 }} />
+                    <Chip 
+                        icon={<Diamond sx={{ color: '#000 !important' }} />} 
+                        label={`${t('wallet').toUpperCase()}: ${user.lux_coins} LC`} 
+                        sx={{ 
+                            mt: 3, 
+                            bgcolor: themeColor, 
+                            color: '#000', 
+                            fontWeight: 800, 
+                            fontSize: '1rem', 
+                            px: 2, py: 2.5, 
+                            borderRadius: 50,
+                            boxShadow: isCarnival ? '0 0 20px rgba(156, 39, 176, 0.5)' : 'none'
+                        }} 
+                    />
                 )}
             </Box>
             {message && <Alert severity={message.type} sx={{ mb: 4, bgcolor: 'rgba(0,0,0,0.5)', color: '#FFF', border: `1px solid ${message.type === 'success' ? '#4CAF50' : '#f44336'}` }}>{message.text}</Alert>}
             <Grid container spacing={4} justifyContent="center">
                 {items.map((item) => (
-                    <Grid item xs={12} sm={6} md={4} key={item.id}>
-                        <Paper sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: 'rgba(15, 18, 29, 0.8)', border: item.highlight ? '1px solid #D4AF37' : '1px solid rgba(255,255,255,0.1)', borderRadius: 4, position: 'relative', overflow: 'hidden', transition: 'transform 0.3s', '&:hover': { transform: 'translateY(-5px)', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' } }}>
-                            <Box sx={{ width: '100%', height: 220, backgroundImage: `url(${item.image})`, backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center', position: 'relative', bgcolor: 'rgba(0,0,0,0.3)' }}>
+                    <Grid size={{ xs: 12, sm: 6, md: 4 }} key={item.id}>
+                        <Paper sx={{ 
+                            height: '100%', 
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            bgcolor: 'rgba(15, 18, 29, 0.8)', 
+                            border: isCarnival 
+                                ? (item.highlight ? '1px solid #9C27B0' : '1px solid rgba(156, 39, 176, 0.3)')
+                                : (item.highlight ? '1px solid #D4AF37' : '1px solid rgba(255,255,255,0.1)'),
+                            borderRadius: 4, 
+                            position: 'relative', 
+                            overflow: 'hidden', 
+                            transition: 'transform 0.3s', 
+                            boxShadow: isCarnival && item.highlight ? '0 0 25px rgba(156, 39, 176, 0.2)' : 'none',
+                            '&:hover': { 
+                                transform: 'translateY(-5px)', 
+                                boxShadow: isCarnival ? '0 10px 40px rgba(156, 39, 176, 0.4)' : '0 10px 30px rgba(0,0,0,0.5)',
+                                borderColor: themeColor 
+                            } 
+                        }}>
+                            <Box sx={{ width: '100%', height: 220, backgroundImage: `url(${item.image})`, backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative' }}>
                                 <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(15, 18, 29, 1), transparent 50%)' }} />
                                 <Box sx={{ position: 'absolute', top: 15, right: 15 }}><Chip label={item.label} size="small" sx={{ bgcolor: item.type === 'money' ? '#4CAF50' : '#000', color: '#FFF', fontWeight: 700, border: '1px solid rgba(255,255,255,0.2)' }} /></Box>
                             </Box>
@@ -67,9 +105,22 @@ const Vault: React.FC = () => {
                                 <Typography variant="body2" color="text.secondary" mb={3} flexGrow={1}>{item.description}</Typography>
                                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} p={1.5} bgcolor="rgba(0,0,0,0.3)" borderRadius={2}>
                                         <Typography variant="body2" color="gray">{t('cost_label')}</Typography>
-                                        <Typography variant="h6" fontWeight={900} color="#D4AF37" display="flex" alignItems="center" gap={0.5}><Diamond fontSize="small" /> {item.cost}</Typography>
+                                        <Typography variant="h6" fontWeight={900} color={themeColor} display="flex" alignItems="center" gap={0.5}><Diamond fontSize="small" /> {item.cost}</Typography>
                                 </Box>
-                                <Button variant="contained" fullWidth onClick={() => handlePurchase(item)} disabled={loading !== null || (user?.lux_coins || 0) < item.cost} sx={{ bgcolor: '#D4AF37', color: '#000', fontWeight: 800, py: 1.5, '&:disabled': { bgcolor: 'rgba(255,255,255,0.1)', color: '#555' }, '&:hover': { bgcolor: '#F3E5AB' } }}>
+                                <Button 
+                                    variant="contained" 
+                                    fullWidth 
+                                    onClick={() => handlePurchase(item)} 
+                                    disabled={loading !== null || (user?.lux_coins || 0) < item.cost} 
+                                    sx={{ 
+                                        bgcolor: themeColor, 
+                                        color: '#000', 
+                                        fontWeight: 800, 
+                                        py: 1.5, 
+                                        '&:disabled': { bgcolor: 'rgba(255,255,255,0.1)', color: '#555' }, 
+                                        '&:hover': { bgcolor: isCarnival ? '#E040FB' : '#F3E5AB' } 
+                                    }}
+                                >
                                     {loading === item.id ? <CircularProgress size={24} color="inherit" /> : t('btn_redeem_item')}
                                 </Button>
                             </Box>

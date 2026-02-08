@@ -1,18 +1,60 @@
-
 import React, { useState, useEffect } from 'react';
 import { Box, TextField, Button, Typography, Container, Paper, Link, InputAdornment, IconButton, Alert, CircularProgress } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useLanguage } from '../hooks/useLanguage';
 import { api } from '../services/api';
 import { PageRoute, UserProfile } from '../types';
-import { Visibility, VisibilityOff, Star } from '@mui/icons-material';
+import { Visibility, VisibilityOff, TheaterComedy } from '@mui/icons-material'; 
+import { useThemeConfig } from '../contexts/ThemeContext';
 
 interface LoginProps {
   setUser: (user: UserProfile) => void;
 }
 
+const fireConfetti = () => {
+    const colors = ['#FFD700', '#9C27B0', '#00E676', '#E040FB'];
+    const container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.top = '0';
+    container.style.left = '0';
+    container.style.width = '100%';
+    container.style.height = '100%';
+    container.style.pointerEvents = 'none';
+    container.style.zIndex = '9999';
+    document.body.appendChild(container);
+
+    for (let i = 0; i < 100; i++) {
+        const el = document.createElement('div');
+        el.style.position = 'absolute';
+        el.style.left = '50%';
+        el.style.top = '50%';
+        el.style.width = '10px';
+        el.style.height = '10px';
+        el.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        el.style.transform = `translate(-50%, -50%) rotate(${Math.random() * 360}deg)`;
+        
+        const angle = Math.random() * Math.PI * 2;
+        const velocity = 200 + Math.random() * 300;
+        const tx = Math.cos(angle) * velocity;
+        const ty = Math.sin(angle) * velocity;
+        
+        el.animate([
+            { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
+            { transform: `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px)) scale(0)`, opacity: 0 }
+        ], {
+            duration: 1000 + Math.random() * 1000,
+            easing: 'cubic-bezier(0, .9, .57, 1)',
+            fill: 'forwards'
+        });
+        container.appendChild(el);
+    }
+    
+    setTimeout(() => container.remove(), 2500);
+};
+
 const Login: React.FC<LoginProps> = ({ setUser }) => {
   const { t } = useLanguage();
+  const { themeConfig } = useThemeConfig();
   const navigate = useNavigate();
   const location = useLocation(); 
   const [email, setEmail] = useState('');
@@ -21,22 +63,20 @@ const Login: React.FC<LoginProps> = ({ setUser }) => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Verifica erros vindos da confirmação de email (URL Hash ou LocalStorage)
+  const isCarnival = themeConfig.active && themeConfig.name === 'carnival';
+
   useEffect(() => {
-    // 1. Tenta ler do LocalStorage (definido no App.tsx para contornar o HashRouter)
     const storedError = localStorage.getItem('auth_error');
     if (storedError) {
-        // Se a mensagem for genérica de servidor, melhoramos ela
         if (storedError.includes('unexpected_failure') || storedError.includes('Database error')) {
-            setError("Ocorreu um conflito ao criar sua conta (CPF ou Telefone já em uso). Tente fazer login ou contate o suporte.");
+            setError("Ocorreu um conflito ao criar sua conta. Tente fazer login ou contate o suporte.");
         } else {
             setError(storedError);
         }
-        localStorage.removeItem('auth_error'); // Limpa para não mostrar sempre
+        localStorage.removeItem('auth_error');
         return;
     }
 
-    // 2. Fallback: Tenta ler da URL (caso o router não tenha limpado)
     const hash = location.hash;
     if (hash.includes('error=')) {
         const params = new URLSearchParams(hash.replace('#', '?'));
@@ -52,17 +92,31 @@ const Login: React.FC<LoginProps> = ({ setUser }) => {
 
     try {
       const user = await api.auth.login(email, password);
-      setUser(user);
-      navigate(PageRoute.DASHBOARD);
+      
+      if (isCarnival) {
+          fireConfetti();
+          setTimeout(() => {
+              setUser(user);
+              navigate(PageRoute.DASHBOARD);
+          }, 800);
+      } else {
+          setUser(user);
+          navigate(PageRoute.DASHBOARD);
+      }
+
     } catch (err: any) {
       console.error(err);
       if (err.message.includes('Perfil não encontrado')) {
-          setError("Erro de permissão: Sua conta existe, mas o sistema não conseguiu carregar o perfil. Contate o administrador.");
+          setError("Erro de permissão ou conta incompleta. Contate o suporte.");
+      } else if (err.message.includes('No API key found')) {
+          setError("Erro interno de conexão. Tente atualizar a página.");
       } else {
-          setError(err.message || "Credenciais inválidas ou erro de conexão.");
+          setError(err.message || "Credenciais inválidas.");
       }
+      setLoading(false); // Garante que pare de girar em caso de erro
     } finally {
-      setLoading(false);
+      // Se não for carnaval (que tem delay), libera o loading imediatamente se não tiver navegado
+      if(!isCarnival && error) setLoading(false);
     }
   };
 
@@ -76,20 +130,24 @@ const Login: React.FC<LoginProps> = ({ setUser }) => {
       overflow: 'hidden',
       bgcolor: '#050510'
     }}>
-      {/* Animated Background Elements */}
+      {/* Background Elements */}
       <Box sx={{ position: 'absolute', inset: 0, zIndex: 0 }}>
           <Box sx={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at center, transparent 0%, #050510 100%)', zIndex: 2 }} />
+          {isCarnival && (
+              <>
+                <Box sx={{ position: 'absolute', top: '10%', left: '5%', opacity: 0.4, animation: 'float-slow 6s infinite ease-in-out' }}>
+                    <TheaterComedy sx={{ fontSize: 100, color: '#9C27B0' }} />
+                </Box>
+                <Box sx={{ position: 'absolute', bottom: '10%', right: '5%', opacity: 0.4, animation: 'float-slow 8s infinite ease-in-out reverse' }}>
+                    <TheaterComedy sx={{ fontSize: 120, color: '#00E676', transform: 'rotate(180deg)' }} />
+                </Box>
+              </>
+          )}
           <Box sx={{ 
               position: 'absolute', top: '-30%', left: '-10%', 
               width: '60vw', height: '60vw', 
-              background: 'radial-gradient(circle, rgba(212, 175, 55, 0.1) 0%, transparent 70%)', 
+              background: isCarnival ? 'radial-gradient(circle, rgba(156, 39, 176, 0.15) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(212, 175, 55, 0.1) 0%, transparent 70%)', 
               filter: 'blur(80px)', animation: 'float-slow 15s infinite alternate' 
-          }} />
-          <Box sx={{ 
-              position: 'absolute', bottom: '-20%', right: '-10%', 
-              width: '50vw', height: '50vw', 
-              background: 'radial-gradient(circle, rgba(170, 140, 44, 0.08) 0%, transparent 70%)', 
-              filter: 'blur(80px)', animation: 'float-slow 20s infinite alternate-reverse' 
           }} />
       </Box>
 
@@ -97,15 +155,20 @@ const Login: React.FC<LoginProps> = ({ setUser }) => {
         <Paper elevation={0} sx={{ 
             p: { xs: 4, sm: 5 }, 
             borderRadius: 4, 
-            bgcolor: 'rgba(255,255,255,0.02)',
-            border: '1px solid rgba(212, 175, 55, 0.2)',
+            bgcolor: 'rgba(255,255,255,0.02)', 
+            border: isCarnival ? '1px solid rgba(156, 39, 176, 0.3)' : '1px solid rgba(212, 175, 55, 0.2)',
             backdropFilter: 'blur(20px)',
-            boxShadow: '0 20px 80px rgba(0,0,0,0.6)'
+            boxShadow: isCarnival ? '0 0 50px rgba(156, 39, 176, 0.3)' : '0 20px 80px rgba(0,0,0,0.6)',
+            animation: isCarnival ? 'neon-pulse 3s infinite' : 'none'
         }}>
           
           <Box textAlign="center" mb={4}>
-            <Box sx={{ mb: 2, display: 'inline-block', p: 1, borderRadius: '50%', border: '1px solid rgba(212, 175, 55, 0.3)', bgcolor: 'rgba(0,0,0,0.4)' }}>
-                <Star sx={{ color: '#D4AF37', fontSize: 30 }} />
+            <Box sx={{ mb: 2, display: 'inline-block', p: 2, borderRadius: '50%', border: isCarnival ? '1px solid #00E676' : '1px solid rgba(212, 175, 55, 0.3)', bgcolor: 'rgba(0,0,0,0.4)', animation: 'sway 3s infinite ease-in-out' }}>
+                {isCarnival ? (
+                    <TheaterComedy sx={{ color: '#E040FB', fontSize: 40 }} /> 
+                ) : (
+                    <img src="/logo.png" alt="Lux" style={{ height: 40, width: 40, objectFit: 'contain' }} /> 
+                )}
             </Box>
             <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 4, display: 'block' }}>
                 BEM-VINDO
@@ -115,7 +178,7 @@ const Login: React.FC<LoginProps> = ({ setUser }) => {
             </Typography>
           </Box>
 
-          {error && <Alert severity="error" variant="filled" sx={{ mb: 3, bgcolor: 'rgba(211, 47, 47, 0.1)', color: '#ffcdd2', border: '1px solid rgba(244, 67, 54, 0.3)' }}>{error}</Alert>}
+          {error && <Alert severity="error" variant="filled" sx={{ mb: 3 }}>{error}</Alert>}
 
           <Box component="form" onSubmit={handleSubmit}>
             <TextField
@@ -159,7 +222,7 @@ const Login: React.FC<LoginProps> = ({ setUser }) => {
             />
 
             <Box textAlign="right" mt={1} mb={4}>
-                <Link href="#" color="#D4AF37" underline="hover" variant="caption" sx={{ letterSpacing: 0.5 }}>
+                <Link href="#" color="primary" underline="hover" variant="caption" sx={{ letterSpacing: 0.5 }}>
                     {t('forgot_pass')}
                 </Link>
             </Box>
@@ -175,9 +238,8 @@ const Login: React.FC<LoginProps> = ({ setUser }) => {
                   fontSize: '1rem', 
                   fontWeight: 800,
                   borderRadius: 50,
-                  background: 'linear-gradient(90deg, #D4AF37, #AA8C2C)',
                   color: '#000',
-                  boxShadow: '0 0 20px rgba(212, 175, 55, 0.3)'
+                  boxShadow: '0 0 20px rgba(0,0,0,0.3)'
               }}
             >
               {loading ? <CircularProgress size={24} color="inherit" /> : t('login').toUpperCase()}
@@ -194,14 +256,6 @@ const Login: React.FC<LoginProps> = ({ setUser }) => {
           </Box>
         </Paper>
       </Container>
-      <style>
-          {`
-            @keyframes float-slow {
-                0% { transform: translate(0, 0); }
-                100% { transform: translate(20px, -20px); }
-            }
-          `}
-      </style>
     </Box>
   );
 };

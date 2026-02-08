@@ -1,5 +1,6 @@
-import React from 'react';
-import { Box, Container, Grid, Typography, Link, IconButton, Divider, Stack } from '@mui/material';
+
+import React, { useState } from 'react';
+import { Box, Container, Typography, Link, IconButton, Divider, Stack, Grid } from '@mui/material';
 import { Facebook, Twitter, Instagram, YouTube, Email, Phone, Handshake } from '@mui/icons-material';
 import { COMPANY_INFO } from '../constants';
 import { PageRoute } from '../types';
@@ -32,14 +33,14 @@ const Footer: React.FC = () => {
       <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: '1px', background: 'linear-gradient(90deg, transparent, #D4AF37, transparent)' }} />
       <Container maxWidth="lg">
         <Grid container spacing={8}>
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
                 <Box display="flex" alignItems="center" mb={2} sx={{ cursor: 'pointer' }} onClick={() => navigate('/')}>
                     <Box component="img" src="/logo.png" alt="Lux Brasil" sx={{ height: 85, mr: 0.5, display: 'block' }} />
                     <Typography variant="h5" className="logo-shimmer" sx={{ fontFamily: 'Montserrat', fontWeight: 900, letterSpacing: 2, lineHeight: 1 }}>LUX BRASIL</Typography>
                 </Box>
                 <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.8, mb: 3, maxWidth: 300 }}>{t('footer_desc')}</Typography>
                 <Stack direction="row" spacing={1}>
-                    <SocialButton icon={<Instagram />} link="https://www.instagram.com/luxbrasiloficial/" />
+                    <SocialButton icon={<Instagram />} link="https://www.instagram.com/luxbr.oficial" />
                     <SocialButton icon={<Facebook />} />
                     <SocialButton icon={<Twitter />} />
                     <SocialButton icon={<YouTube />} />
@@ -48,11 +49,12 @@ const Footer: React.FC = () => {
                     <Box display="inline-flex" alignItems="center" justifyContent="center" gap={2} sx={{ px: 2, py: 1, borderRadius: 50, border: '1px solid rgba(255,255,255,0.1)', background: 'linear-gradient(90deg, rgba(212,175,55,0.1) 0%, rgba(0, 230, 118, 0.1) 100%)', boxShadow: '0 0 20px rgba(0,0,0,0.5)', cursor: 'pointer', transition: 'transform 0.2s', '&:hover': { transform: 'scale(1.02)' } }} onClick={() => window.open('https://www.wgjogo0.com/', '_blank')}>
                         <Typography variant="caption" color="primary" sx={{ letterSpacing: 1, fontWeight: 700, lineHeight: 1 }}>LUX BRASIL</Typography>
                         <Box sx={{ display: 'flex', alignItems: 'center', color: '#555', fontSize: '0.8rem' }}><Handshake fontSize="small" /></Box>
+                        {/* WG BRAND - ONLY WG (SPONSOR) */}
                         <Typography variant="caption" sx={{ color: '#00E676', letterSpacing: 1, fontWeight: 900, lineHeight: 1, textShadow: '0 0 10px #00E676, 0 0 20px rgba(0, 230, 118, 0.6)' }}>WG</Typography>
                     </Box>
                 </Box>
             </Grid>
-            <Grid item xs={12} sm={6} md={4}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                 <Typography variant="subtitle1" color="#FFF" sx={{ fontWeight: 700, mb: 3, letterSpacing: 1 }}>{t('footer_contact')}</Typography>
                 <Box display="flex" flexDirection="column" gap={2}>
                     <Box display="flex" gap={2} alignItems="center"><Email sx={{ color: '#D4AF37', fontSize: 20 }} /><Typography variant="body2" color="text.secondary">{COMPANY_INFO.email}</Typography></Box>
@@ -63,7 +65,7 @@ const Footer: React.FC = () => {
                     </Box>
                 </Box>
             </Grid>
-            <Grid item xs={12} sm={6} md={4}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                 <Typography variant="subtitle1" color="#FFF" sx={{ fontWeight: 700, mb: 3, letterSpacing: 1 }}>{t('footer_legal_title')}</Typography>
                 <Box display="flex" flexDirection="column" gap={1.5}>
                     <FooterLink onClick={handleNav(PageRoute.LEGAL_PRIVACY)}>{t('legal_privacy')}</FooterLink>

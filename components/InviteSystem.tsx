@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, IconButton, Snackbar, Alert, List, ListItem, ListItemText, Chip, Button, Grid, Avatar, Tooltip, Divider, Paper, TextField, InputAdornment, ListItemAvatar } from '@mui/material';
-import { ContentCopy, WhatsApp, Telegram, Groups, Star, Share, Casino, TrendingUp, Person, EmojiEvents, CheckCircle, AccessTime, HowToReg, Pending } from '@mui/icons-material';
+import { Box, Typography, Snackbar, Alert, List, ListItem, ListItemText, Chip, Button, Avatar, Divider, Paper, TextField, InputAdornment, ListItemAvatar, Grid } from '@mui/material';
+import { WhatsApp, Telegram, Groups, Share, AccessTime, HowToReg, Pending, CheckCircle, Person, EmojiEvents } from '@mui/icons-material';
 import { supabase, api } from '../services/api';
 import { useLanguage } from '../hooks/useLanguage';
 
@@ -114,19 +115,19 @@ const InviteSystem: React.FC<InviteSystemProps> = ({ userCode, inviteCount, invi
                 </Typography>
 
                 <Grid container spacing={2} mb={5}>
-                    <Grid item xs={12} sm={4}>
+                    <Grid size={{ xs: 12, sm: 4 }}>
                         <Paper sx={{ p: 2, bgcolor: 'rgba(212, 175, 55, 0.08)', border: '1px solid rgba(212, 175, 55, 0.2)', borderRadius: 3, textAlign: 'center' }}>
                             <Typography variant="h4" color="#D4AF37" fontWeight={900} mb={0.5} fontSize={{ xs: '1.5rem', md: '2rem' }}>{inviteCount}</Typography>
                             <Typography variant="caption" color="text.secondary" textTransform="uppercase" fontWeight={600} letterSpacing={1}>{t('invite_stats_friends')}</Typography>
                         </Paper>
                     </Grid>
-                    <Grid item xs={12} sm={4}>
+                    <Grid size={{ xs: 12, sm: 4 }}>
                         <Paper sx={{ p: 2, bgcolor: 'rgba(76, 175, 80, 0.08)', border: '1px solid rgba(76, 175, 80, 0.2)', borderRadius: 3, textAlign: 'center' }}>
                             <Typography variant="h4" color="#4CAF50" fontWeight={900} mb={0.5} fontSize={{ xs: '1.5rem', md: '2rem' }}>+{inviteEarnings}</Typography>
                             <Typography variant="caption" color="text.secondary" textTransform="uppercase" fontWeight={600} letterSpacing={1}>{t('invite_stats_spins')}</Typography>
                         </Paper>
                     </Grid>
-                    <Grid item xs={12} sm={4}>
+                    <Grid size={{ xs: 12, sm: 4 }}>
                         <Paper sx={{ p: 2, bgcolor: 'rgba(33, 150, 243, 0.08)', border: '1px solid rgba(33, 150, 243, 0.2)', borderRadius: 3, textAlign: 'center' }}>
                             <Typography variant="h4" color="#2196F3" fontWeight={900} mb={0.5} fontSize={{ xs: '1.5rem', md: '2rem' }}>{inviteCount > 0 ? '100' : '0'}%</Typography>
                             <Typography variant="caption" color="text.secondary" textTransform="uppercase" fontWeight={600} letterSpacing={1}>{t('invite_stats_rate')}</Typography>

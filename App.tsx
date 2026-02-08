@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Box, CircularProgress } from '@mui/material';
@@ -13,6 +14,7 @@ import Admin from './pages/Admin';
 import Register from './pages/Register';
 import Login from './pages/Login';
 import SupportAvatar from './components/SupportAvatar';
+import ThemeInjector from './components/ThemeInjector';
 import { PageRoute } from './types';
 import { LanguageProvider } from './hooks/useLanguage';
 import { useAuth } from './contexts/AuthContext';
@@ -21,9 +23,11 @@ const App: React.FC = () => {
   const { user, loading, logout, setUser } = useAuth();
   const navigate = useNavigate();
 
+  // Intercepta hash de erro do Supabase que quebra o HashRouter
   useEffect(() => {
     const hash = window.location.hash;
     if (hash && hash.includes('error=')) {
+        // Remove o # inicial se existir
         const cleanHash = hash.startsWith('#') ? hash.substring(1) : hash;
         const params = new URLSearchParams(cleanHash);
         const errorDesc = params.get('error_description');
@@ -47,6 +51,7 @@ const App: React.FC = () => {
 
   return (
     <LanguageProvider>
+        <ThemeInjector />
         <Box display="flex" flexDirection="column" minHeight="100vh" bgcolor="#050510" color="white">
             <Navigation user={user} onLogout={logout} />
             <Box component="main" flexGrow={1}>

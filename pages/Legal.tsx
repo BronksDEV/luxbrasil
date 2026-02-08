@@ -14,9 +14,6 @@ const Legal: React.FC<LegalProps> = ({ type }) => {
   const { t } = useLanguage();
 
   const getContent = () => {
-    // Em uma implementação real completa, os textos longos viriam de arquivos de tradução separados (JSON)
-    // Para simplificar neste contexto, mantemos o texto base em PT e o título traduzido.
-    // O usuário pediu "pente fino" no suporte a idiomas, então a estrutura já suporta a chave.
     
     switch(type) {
       case PageRoute.LEGAL_PRIVACY:

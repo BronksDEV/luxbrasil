@@ -1,5 +1,7 @@
+
 import React, { useEffect, useState } from 'react';
-import { Container, Typography, Paper, Tabs, Tab, Box, Button, Table, TableBody, TableCell, TableHead, TableRow, Chip, Alert, Snackbar, useTheme, useMediaQuery, Grid, Divider } from '@mui/material';
+import { Container, Typography, Paper, Tabs, Tab, Box, Button, Table, TableBody, TableCell, TableHead, TableRow, Chip, Alert, Snackbar, useMediaQuery, Grid, Divider } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { EmojiEvents, AccessTime, ReceiptLong } from '@mui/icons-material';
 import { api } from '../services/api';
 import { WinnerLog } from '../types';
@@ -31,6 +33,7 @@ const PrizeCard: React.FC<PrizeCardProps> = ({ prize, t, onRedeem }) => (
         position: 'relative',
         overflow: 'hidden'
     }}>
+        {/* Status Strip */}
         <Box sx={{ 
             position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, 
             bgcolor: prize.status === 'redeemed' ? '#4CAF50' : prize.status === 'pending' ? '#FFD700' : '#2196f3' 
@@ -97,7 +100,7 @@ const PrizeCard: React.FC<PrizeCardProps> = ({ prize, t, onRedeem }) => (
 const MyPrizes: React.FC = () => {
     const { t } = useLanguage();
     const { user } = useAuth();
-    const theme = useTheme() as any;
+    const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     
     const [prizes, setPrizes] = useState<WinnerLog[]>([]);
@@ -105,9 +108,12 @@ const MyPrizes: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{msg: string, type: 'success' | 'info' | 'error'} | null>(null);
 
+    // Helper para filtrar prêmios reais
     const isRealPrize = (log: WinnerLog) => {
         const name = log.prize_name.toLowerCase();
+        // Se o nome contiver termos de perda, não exibe na carteira
         if (name.includes('tente') || name.includes('tnt') || name.includes('não foi')) return false;
+        // Se o valor for 0 e não for físico (ex: mensagem de sistema), ignora
         if ((!log.prize_value || log.prize_value <= 0) && log.prize_type !== 'physical') return false;
         return true;
     };
@@ -116,15 +122,18 @@ const MyPrizes: React.FC = () => {
         const load = async () => {
             setLoading(true);
             
+            // Executa em paralelo para performance e garantia de execução
             const [histData, completedChallenges] = await Promise.all([
                 api.game.getHistory(user?.id).catch(e => { console.error(e); return []; }),
                 api.challenges.checkAction('visit_wallet').catch(e => { console.error("Erro desafio", e); return []; })
             ]);
 
+            // Filtra apenas prêmios reais
             setPrizes(histData.filter(isRealPrize));
             setLoading(false);
 
             if (completedChallenges && completedChallenges.length > 0) {
+                // Notifica sobre todos os completados (normalmente 1)
                 const challenge = completedChallenges[0];
                 const rewardText = challenge.reward_spins > 0 ? ` +${challenge.reward_spins} Giros!` : '!';
                 setToast({
@@ -150,7 +159,7 @@ const MyPrizes: React.FC = () => {
     };
 
     const filterPrizes = () => {
-        if (tabIndex === 0) return prizes;
+        if (tabIndex === 0) return prizes; // All
         if (tabIndex === 1) return prizes.filter(p => p.status === 'pending');
         if (tabIndex === 2) return prizes.filter(p => p.status === 'requested');
         if (tabIndex === 3) return prizes.filter(p => p.status === 'redeemed');
@@ -188,6 +197,7 @@ const MyPrizes: React.FC = () => {
                     </Paper>
                 ) : (
                     <>
+                        {/* --- VIEW DESKTOP (TABELA) --- */}
                         <Paper sx={{ 
                             display: { xs: 'none', md: 'block' },
                             p: 0, 
@@ -243,6 +253,7 @@ const MyPrizes: React.FC = () => {
                             </Table>
                         </Paper>
 
+                        {/* --- VIEW MOBILE (CARDS) --- */}
                         <Box sx={{ display: { xs: 'flex', md: 'none' }, flexDirection: 'column' }}>
                             {filterPrizes().map((prize) => (
                                 <PrizeCard key={prize.id} prize={prize} t={t} onRedeem={handleRedeem} />

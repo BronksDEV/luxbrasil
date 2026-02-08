@@ -1,13 +1,23 @@
+
 import React, { useState } from 'react';
 import { Box, Typography, Paper, Fade, useTheme, useMediaQuery, IconButton, Tooltip } from '@mui/material';
 import { WhatsApp, Telegram } from '@mui/icons-material';
+import { useThemeConfig } from '../contexts/ThemeContext';
 
 const SupportAvatar: React.FC = () => {
   const [isHovered, setIsHovered] = useState(false);
+  const { themeConfig } = useThemeConfig();
   const theme = useTheme() as any;
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const avatarUrl = "https://img.freepik.com/fotos-gratis/avatar-androgino-de-pessoa-queer-nao-binaria_23-2151100221.jpg?t=st=1766989621~exp=1766993221~hmac=ea77d713b740eee660debc16d5b6ddc88cbb99e7194b8d074cf266900810f9b3";
+  const isCarnival = themeConfig.active && themeConfig.name === 'carnival';
+
+  // URL Padrão vs URL Carnaval (Local)
+  const defaultAvatarUrl = "https://img.freepik.com/fotos-gratis/avatar-androgino-de-pessoa-queer-nao-binaria_23-2151100221.jpg?t=st=1766989621~exp=1766993221~hmac=ea77d713b740eee660debc16d5b6ddc88cbb99e7194b8d074cf266900810f9b3";
+  // Certifique-se de ter o arquivo 'carnaval.png' na pasta public/ do projeto
+  const carnivalAvatarUrl = "/carnaval.png"; 
+
+  const avatarUrl = isCarnival ? carnivalAvatarUrl : defaultAvatarUrl;
   
   const WHATSAPP_SUPPORT = "https://wa.me/5516994244231";
   const WHATSAPP_BENEFITS = "https://whatsapp.com/channel/0029Vb5p8QG0lwgnb0huk10x";
@@ -27,7 +37,7 @@ const SupportAvatar: React.FC = () => {
     link: string;
     index: number;
   }) => (
-    <Tooltip title={tooltip} placement="left" arrow>
+    <Tooltip title={tooltip} placement="left" arrow children={
       <IconButton
         onClick={() => window.open(link, '_blank')}
         sx={{
@@ -64,7 +74,7 @@ const SupportAvatar: React.FC = () => {
       >
         {icon}
       </IconButton>
-    </Tooltip>
+    } />
   );
 
   return (
@@ -117,7 +127,7 @@ const SupportAvatar: React.FC = () => {
       >
         
         {!isMobile && isHovered && (
-          <Fade in={isHovered}>
+          <Fade in={isHovered} children={
             <Paper sx={{ 
               mr: 3, 
               p: 2.5, 
@@ -139,19 +149,20 @@ const SupportAvatar: React.FC = () => {
                 <span style={{ color: '#555', fontSize: '0.75rem' }}>Clique para atendimento.</span>
               </Typography>
             </Paper>
-          </Fade>
+          } />
         )}
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.5, md: 2 } }}>
           {!isMobile && (
-            <Fade in={true}>
+            <Fade in={true} children={
               <Box sx={{ 
                 display: 'flex', 
                 flexDirection: 'column', 
                 gap: 1.5, 
                 mr: 1,
                 opacity: isHovered ? 1 : 0.6,
-                transition: 'opacity 0.3s'
+                transition: 'opacity 0.3s',
+                pointerEvents: isHovered ? 'auto' : 'none'
               }}>
                 <FloatingButton
                   icon={<WhatsApp sx={{ fontSize: { xs: 18, md: 20 } }} />}
@@ -177,7 +188,7 @@ const SupportAvatar: React.FC = () => {
                   index={2}
                 />
               </Box>
-            </Fade>
+            } />
           )}
 
           <Box 
@@ -189,19 +200,27 @@ const SupportAvatar: React.FC = () => {
                 width: { xs: 55, md: 75 },
                 height: { xs: 55, md: 75 },
                 borderRadius: '50%',
-                border: '3px solid #D4AF37',
+                border: isCarnival ? '3px solid #9C27B0' : '3px solid #D4AF37',
                 bgcolor: '#FFF',
                 overflow: 'hidden',
-                boxShadow: '0 0 25px rgba(212, 175, 55, 0.5)',
+                boxShadow: isCarnival ? '0 0 25px rgba(156, 39, 176, 0.5)' : '0 0 25px rgba(212, 175, 55, 0.5)',
                 transform: isHovered ? 'scale(1.1) rotate(0deg)' : 'rotate(-5deg)',
                 transition: 'transform 0.3s ease',
-                animation: !isHovered ? 'subtle-float 4s ease-in-out infinite' : 'none'
+                animation: !isHovered ? 'subtle-float 4s ease-in-out infinite' : 'none',
+                position: 'relative'
               }}
             >
               <Box 
                 component="img"
                 src={avatarUrl}
                 alt="Ana Support"
+                onError={(e: any) => {
+                    // Fallback se a imagem carnaval.png não existir ou falhar
+                    if (e.target.src !== defaultAvatarUrl) {
+                        e.target.onerror = null;
+                        e.target.src = defaultAvatarUrl;
+                    }
+                }}
                 sx={{ 
                   width: '100%', 
                   height: '100%', 

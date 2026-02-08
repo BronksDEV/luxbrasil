@@ -1,8 +1,7 @@
-
 import React, { useEffect, useState } from 'react';
-import { Box, Container, Paper, Typography, LinearProgress, Chip, Button, Snackbar, Alert, useTheme, useMediaQuery } from '@mui/material';
-import Grid from '@mui/material/Unstable_Grid2';
-import { History, TrendingUp, Circle, EmojiEvents, Diamond, Star } from '@mui/icons-material';
+import { Box, Container, Paper, Typography, LinearProgress, Chip, Button, Snackbar, Alert, useMediaQuery, Grid } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import { History, TrendingUp, Circle, EmojiEvents, Diamond, Star, Bolt } from '@mui/icons-material';
 import Roulette from '../components/Roulette';
 import InviteSystem from '../components/InviteSystem';
 import RouletteTimer from '../components/RouletteTimer';
@@ -12,6 +11,7 @@ import { useLanguage } from '../hooks/useLanguage';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { useNavigate } from 'react-router-dom';
 import { PageRoute } from '../types';
+import { useThemeConfig } from '../contexts/ThemeContext';
 
 interface DashboardProps {
   user: UserProfile;
@@ -21,7 +21,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const { requestPermission } = usePushNotifications();
-  const theme = useTheme() as any;
+  const theme = useTheme();
+  const { themeConfig } = useThemeConfig();
   const isDesktop = useMediaQuery(theme.breakpoints.up('lg'));
 
   const [prizes, setPrizes] = useState<Prize[]>([]);
@@ -31,6 +32,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [spinsAvailable, setSpinsAvailable] = useState(user.available_spins);
   
   const [notification, setNotification] = useState<{open: boolean, message: string}>({ open: false, message: '' });
+
+  const isCarnival = themeConfig.active && themeConfig.name === 'carnival';
 
   useEffect(() => {
     setSpinsAvailable(user.available_spins);
@@ -49,26 +52,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         setPrizes(prizesData);
         setHistory(historyData.filter(isWinningLog));
         
-        const freshUser = await api.auth.getCurrentUser();
-        setSpinsAvailable(freshUser.available_spins);
+        // REMOVIDO: processDailyLogin e checkAction('login')
+        // Motivo: Essas funções já são chamadas no AuthContext/Login.
+        // Chamá-las aqui disparava o Realtime Listener, causando Loop Infinito.
 
-        await api.auth.processDailyLogin();
-        const completedLogin = await api.challenges.checkAction('login');
-        const completedInvites = await api.challenges.checkAction('check_invites');
+        // Apenas verifica se há missões PRONTAS para resgatar (visualização)
         const approvedChallenges = await api.challenges.getCompletedReadyToClaim();
-
-        const allCompleted = [...completedLogin, ...completedInvites];
         
         if (approvedChallenges.length > 0) {
              setNotification({
                 open: true,
                 message: t('notification_missions_approved', { count: approvedChallenges.length })
-            });
-        } else if (allCompleted.length > 0) {
-            const names = allCompleted.map(c => c.title).join(', ');
-            setNotification({
-                open: true,
-                message: t('notification_mission_completed', { name: names })
             });
         }
 
@@ -79,13 +73,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       }
     };
     fetchData();
-  }, [t]);
+  }, [t]); // Dependências reduzidas para evitar re-execução
 
   const handleSpinResult = async (result: SpinResult) => {
     setSpinsAvailable(result.remaining_spins);
     const h = await api.game.getHistory();
     setHistory(h.filter(isWinningLog));
-    api.auth.getCurrentUser().then(u => setSpinsAvailable(u.available_spins));
+    // AuthContext via Realtime atualizará o user global automaticamente
   };
   
   const xp = user.xp || 0;
@@ -105,13 +99,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       levelName = t('level_platinum');
   }
 
+  // Theme Override
+  if (isCarnival) {
+      borderColor = '#9C27B0'; // Purple for all in Carnival mode
+  }
+
   if (loading) return <LinearProgress color="primary" />;
 
   return (
     <Container maxWidth="xl" sx={{ py: { xs: 3, md: 6 }, bgcolor: '#050510' }}>
       <Grid container spacing={4}>
         
-        <Grid xs={12} lg={8}>
+        <Grid size={{ xs: 12, lg: 8 }}>
           <Paper sx={{ 
               p: { xs: 2, md: 4 }, 
               textAlign: 'center', 
@@ -119,16 +118,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               borderRadius: 4, 
               position: 'relative', 
               overflow: 'hidden',
-              boxShadow: '0 0 50px rgba(0,0,0,0.8)',
-              border: '1px solid rgba(212, 175, 55, 0.15)'
+              boxShadow: isCarnival ? '0 0 50px rgba(156, 39, 176, 0.4)' : '0 0 50px rgba(0,0,0,0.8)',
+              border: isCarnival ? '1px solid #9C27B0' : '1px solid rgba(212, 175, 55, 0.15)'
             }}>
-             <Box sx={{ position: 'absolute', top: 0, left: '20%', right: '20%', height: '2px', background: 'linear-gradient(90deg, transparent, #D4AF37, transparent)' }} />
+             <Box sx={{ position: 'absolute', top: 0, left: '20%', right: '20%', height: '2px', background: isCarnival ? 'linear-gradient(90deg, transparent, #9C27B0, transparent)' : 'linear-gradient(90deg, transparent, #D4AF37, transparent)' }} />
             
             <Box mb={2} mt={1}>
                 <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 4, fontSize: { xs: '0.7rem', md: '0.8rem' } }}>
                     {t('member_area')}
                 </Typography>
-                <Typography variant="h4" gutterBottom sx={{ mt: 0, color: '#FFF', fontSize: { xs: '1.5rem', md: '2.2rem' }, textShadow: '0 0 20px rgba(212,175,55,0.3)' }}>
+                <Typography variant="h4" gutterBottom sx={{ mt: 0, color: '#FFF', fontSize: { xs: '1.5rem', md: '2.2rem' }, textShadow: isCarnival ? '0 0 20px rgba(156, 39, 176, 0.3)' : '0 0 20px rgba(212,175,55,0.3)' }}>
                     {t('spin')}
                 </Typography>
             </Box>
@@ -161,7 +160,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           </Box>
         </Grid>
 
-        <Grid xs={12} lg={4}>
+        <Grid size={{ xs: 12, lg: 4 }}>
             
             <Paper sx={{ 
                 p: 3, 
@@ -223,7 +222,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             }}>
                 <Box sx={{ p: 2, bgcolor: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <Box display="flex" alignItems="center" gap={1}>
-                        <History sx={{ color: '#D4AF37' }} />
+                        <History sx={{ color: isCarnival ? '#9C27B0' : '#D4AF37' }} />
                         <Typography variant="subtitle1" fontWeight={700} color="#FFF">
                             {t('recent_activity')}
                         </Typography>
@@ -240,13 +239,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                             alignItems: 'center',
                             gap: 2,
                             transition: 'background 0.2s',
-                            '&:hover': { bgcolor: 'rgba(212, 175, 55, 0.05)' }
+                            '&:hover': { bgcolor: isCarnival ? 'rgba(156, 39, 176, 0.05)' : 'rgba(212, 175, 55, 0.05)' }
                         }}>
                             <Box sx={{ 
                                 width: 36, height: 36, 
                                 borderRadius: '50%', 
-                                bgcolor: h.prize_type === 'money' ? 'rgba(212, 175, 55, 0.1)' : 'rgba(76, 175, 80, 0.1)',
-                                color: h.prize_type === 'money' ? '#D4AF37' : '#4CAF50',
+                                bgcolor: h.prize_type === 'money' ? (isCarnival ? 'rgba(156, 39, 176, 0.1)' : 'rgba(212, 175, 55, 0.1)') : 'rgba(76, 175, 80, 0.1)',
+                                color: h.prize_type === 'money' ? (isCarnival ? '#9C27B0' : '#D4AF37') : '#4CAF50',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center'
                             }}>
                                 {h.prize_type === 'money' ? <Diamond sx={{ fontSize: 14 }} /> : <Circle sx={{ fontSize: 12 }} />}
@@ -285,7 +284,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                 <Box p={2} textAlign="center" sx={{ bgcolor: 'rgba(0,0,0,0.2)' }}>
                     <Button 
                         size="small" 
-                        sx={{ color: '#D4AF37', fontSize: '0.75rem' }} 
+                        sx={{ color: isCarnival ? '#9C27B0' : '#D4AF37', fontSize: '0.75rem' }} 
                         onClick={() => navigate(PageRoute.MY_PRIZES)}
                     >
                         {t('view_all')}
@@ -308,7 +307,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               icon={<EmojiEvents fontSize="inherit" />}
               sx={{ 
                   width: '100%', 
-                  bgcolor: '#D4AF37', 
+                  bgcolor: isCarnival ? '#9C27B0' : '#D4AF37', 
                   color: '#000', 
                   fontWeight: 800,
                   boxShadow: '0 0 20px rgba(212, 175, 55, 0.5)'

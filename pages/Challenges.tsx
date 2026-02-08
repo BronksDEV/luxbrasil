@@ -1,456 +1,614 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Box, Container, Typography, Tabs, Tab, Button, Chip,
-  LinearProgress, Grid, Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, CircularProgress, Paper, IconButton, Snackbar, Alert
+  Box,
+  Container,
+  Typography,
+  Button,
+  Chip,
+  LinearProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  CircularProgress,
+  Paper,
+  IconButton,
+  Snackbar,
+  Alert,
+  Avatar,
+  Stack,
+  Tabs,
+  Tab,
+  GridLegacy as Grid
 } from '@mui/material';
-import { 
-    MilitaryTech, Timer, Repeat, WorkspacePremium, 
-    CheckCircle, LockClock, UploadFile, ArrowForward, Star, Diamond, Casino, Person, Share, Storefront, AccountBalanceWallet, OpenInNew, Link as LinkIcon
+import {
+  EmojiEvents,
+  Groups,
+  Star,
+  Diamond,
+  Schedule,
+  CheckCircle,
+  RocketLaunch,
+  Security,
+  Casino,
+  CloudUpload,
+  Close,
+  Image as ImageIcon,
+  UploadFile,
+  LockClock
 } from '@mui/icons-material';
-import { api, supabase } from '../services/api';
-import { Challenge } from '../types';
+import { api } from '../services/api';
+import { Mission } from '../types';
 import { useLanguage } from '../hooks/useLanguage';
 import { useAuth } from '../contexts/AuthContext';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useThemeConfig } from '../contexts/ThemeContext';
 
 const Challenges: React.FC = () => {
   const { t } = useLanguage();
   const { refreshUser } = useAuth();
+  const { themeConfig } = useThemeConfig();
+
   const [activeTab, setActiveTab] = useState(0);
-  const [challenges, setChallenges] = useState<Challenge[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [selectedChallenge, setSelectedChallenge] = useState<Challenge | null>(null);
+  const [missions, setMissions] = useState<Mission[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
   const [proofDialog, setProofDialog] = useState(false);
   const [proofText, setProofText] = useState('');
-  
-  const [verifyingId, setVerifyingId] = useState<string | null>(null);
-  const [toast, setToast] = useState<{open: boolean, msg: string}>({ open: false, msg: '' });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
-  const types = ['daily', 'weekly', 'monthly', 'permanent'];
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
+  const [claimingId, setClaimingId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ open: boolean; msg: string; type?: 'success' | 'error' }>({
+    open: false,
+    msg: '',
+    type: 'success'
+  });
+
   const PARTNER_LINK = 'https://www.wgjogo0.com/';
+  const isCarnival = themeConfig.active && themeConfig.name === 'carnival';
+
+  const colors = {
+    primary: isCarnival ? '#A855F7' : '#D4AF37',
+    secondary: isCarnival ? '#06B6D4' : '#F3E5AB',
+    background: isCarnival
+      ? 'linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(6, 182, 212, 0.1))'
+      : 'linear-gradient(135deg, rgba(212, 175, 55, 0.1), rgba(10, 10, 10, 0.6))',
+    border: isCarnival ? '1px solid rgba(168, 85, 247, 0.2)' : '1px solid rgba(212, 175, 55, 0.2)',
+    progressGradient: isCarnival ? 'linear-gradient(90deg, #A855F7, #3B82F6)' : 'linear-gradient(90deg, #D4AF37, #AA8C2C)',
+    completedBg: isCarnival
+      ? 'linear-gradient(135deg, rgba(236, 72, 153, 0.15), rgba(168, 85, 247, 0.15))'
+      : 'linear-gradient(135deg, rgba(255, 215, 0, 0.15), rgba(0, 0, 0, 0.8))',
+    completedBorder: isCarnival ? '1px solid rgba(236, 72, 153, 0.4)' : '1px solid rgba(255, 215, 0, 0.4)',
+    btnGradient: isCarnival
+      ? 'linear-gradient(90deg, #EC4899, #A855F7, #06B6D4)'
+      : 'linear-gradient(90deg, #D4AF37, #F3E5AB, #D4AF37)',
+    iconBg: isCarnival ? 'linear-gradient(135deg, #A855F7 0%, #06B6D4 100%)' : 'linear-gradient(135deg, #D4AF37 0%, #AA8C2C 100%)'
+  };
+
+  const norm = (v?: any) => (v ?? '').toString().trim().toLowerCase();
 
   useEffect(() => {
-    fetchChallenges();
-  }, [activeTab]);
+    const init = async () => {
+      try {
+        await fetchMissions();
+      } catch (e) {
+        console.error('Erro ao inicializar missões:', e);
+      }
+    };
+    init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const fetchChallenges = async () => {
+  const fetchMissions = async () => {
     setLoading(true);
     try {
-      const type = types[activeTab];
-      const data = await api.challenges.list(type);
-      
-      const { data: userData } = await supabase.auth.getUser();
-      if(userData.user) {
-         const { data: progressData } = await supabase
-            .from('user_challenges')
-            .select('*')
-            .eq('user_id', userData.user.id);
-
-         const combined = data.map(c => {
-             const prog = progressData?.find(p => p.challenge_id === c.id);
-             
-             let effectiveStatus = prog?.status || 'pending';
-             let effectiveProgress = prog?.progress || 0;
-
-             if (c.type === 'daily' && prog && prog.status === 'claimed') {
-                 const dateString = prog.updated_at || prog.last_update;
-                 
-                 if (dateString) {
-                     const lastUpdate = new Date(dateString);
-                     const now = new Date();
-                     
-                     const isToday = lastUpdate.getDate() === now.getDate() && 
-                                     lastUpdate.getMonth() === now.getMonth() &&
-                                     lastUpdate.getFullYear() === now.getFullYear();
-                     
-                     if (!isToday) {
-                         effectiveStatus = 'pending';
-                         effectiveProgress = 0;
-                     }
-                 }
-             }
-
-             return { ...c, progress: effectiveProgress, status: effectiveStatus };
-         });
-         setChallenges(combined);
-      }
+      const data = await api.missions.sync();
+      console.log('Missões carregadas:', data);
+      setMissions(data);
+    } catch (e) {
+      console.error('Erro ao carregar missões', e);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleClaim = async (id: string) => {
-      try {
-          const res = await api.challenges.claim(id);
-          if(res.data?.success) {
-              await refreshUser();
-              fetchChallenges();
-          }
-      } catch(e) { console.error(e); }
+  const normalizeFrequency = (f?: string) => {
+    const v = norm(f);
+    if (v === 'career') return 'permanent';
+    return v;
   };
 
-  const handleVisit = async (challenge: Challenge) => {
-      window.open(PARTNER_LINK, '_blank');
-      
-      if (challenge.verification_type === 'automatic') {
-          setVerifyingId(challenge.id);
-          
-          setTimeout(async () => {
-              await api.challenges.submitProof(challenge.id, "AUTO_VISIT"); 
-              setVerifyingId(null);
-              
-              setToast({ open: true, msg: "Acesso validado! Recompensa creditada." });
-              
-              fetchChallenges();
-              
-              await refreshUser();
-          }, 10000);
+  const getFilteredMissions = () => {
+    const tabMap = ['daily', 'weekly', 'monthly', 'permanent'];
+    const currentType = tabMap[activeTab];
+    return missions.filter(m => normalizeFrequency((m as any).frequency) === currentType);
+  };
+
+  const handleVisit = async (mission: Mission) => {
+    window.open(PARTNER_LINK, '_blank', 'noopener,noreferrer');
+    setVerifyingId((mission as any).challenge_id);
+
+    setTimeout(async () => {
+      try {
+        await api.missions.registerVisit((mission as any).challenge_id);
+        setToast({ open: true, msg: 'Acesso validado!', type: 'success' });
+        await fetchMissions();
+        await refreshUser();
+      } catch (e) {
+        console.error(e);
+        setToast({ open: true, msg: 'Erro ao registrar visita.', type: 'error' });
+      } finally {
+        setVerifyingId(null);
       }
+    }, 5000);
+  };
+
+  const handleClaim = async (mission: Mission) => {
+    setClaimingId((mission as any).user_challenge_id);
+    try {
+      const result = await api.missions.claimReward((mission as any).user_challenge_id);
+      if (result.success) {
+        setToast({ open: true, msg: result.message, type: 'success' });
+        await fetchMissions();
+        await refreshUser();
+      } else {
+        setToast({ open: true, msg: result.message, type: 'error' });
+      }
+    } catch (e) {
+      setToast({ open: true, msg: 'Erro ao resgatar.', type: 'error' });
+    } finally {
+      setClaimingId(null);
+    }
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      setSelectedFile(event.target.files[0]);
+    }
   };
 
   const handleSubmitProof = async () => {
-      if(!selectedChallenge) return;
-      await api.challenges.submitProof(selectedChallenge.id, proofText);
+    if (!selectedMission) return;
+
+    if (!selectedFile) {
+      setToast({ open: true, msg: 'É obrigatório enviar uma imagem.', type: 'error' });
+      return;
+    }
+    if (proofText.trim().length < 3) {
+      setToast({ open: true, msg: 'Adicione uma descrição.', type: 'error' });
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const imageUrl = await api.missions.uploadProof(selectedFile);
+      const proofPayload = `CTX: ${proofText} || IMG: ${imageUrl}`;
+
+      await api.missions.submitProof((selectedMission as any).challenge_id, proofPayload);
+
       setProofDialog(false);
       setProofText('');
-      setToast({ open: true, msg: "Comprovante enviado para análise!" });
-      fetchChallenges();
+      setSelectedFile(null);
+      setToast({ open: true, msg: 'Comprovante enviado!', type: 'success' });
+
+      setMissions(prev =>
+        prev.map(m =>
+          (m as any).challenge_id === (selectedMission as any).challenge_id
+            ? ({ ...(m as any), status: 'in_progress', verification_proof: proofPayload } as any)
+            : m
+        )
+      );
+
+      await fetchMissions();
+    } catch (error: any) {
+      setToast({ open: true, msg: error.message || 'Erro ao enviar.', type: 'error' });
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const getIcon = (iconName: string) => {
-      switch(iconName) {
-          case 'Casino': return <Casino fontSize="large" />;
-          case 'Person': return <Person fontSize="large" />;
-          case 'Share': return <Share fontSize="large" />;
-          case 'Storefront': return <Storefront fontSize="large" />;
-          case 'AccountBalanceWallet': return <AccountBalanceWallet fontSize="large" />;
-          default: return <WorkspacePremium fontSize="large" />;
+    const style = { fontSize: 28, color: '#FFF' as const };
+    switch (iconName) {
+      case 'Casino': return <Casino style={style} />;
+      case 'Person': return <Groups style={style} />;
+      case 'Share': return <RocketLaunch style={style} />;
+      case 'Storefront': return <Security style={style} />;
+      case 'AccountBalanceWallet': return <Diamond style={style} />;
+      case 'Login': return <LockClock style={style} />;
+      case 'CalendarToday': return <Schedule style={style} />;
+      default: return <EmojiEvents style={style} />;
+    }
+  };
+
+  const getButtonState = (m: Mission) => {
+    const status = norm((m as any).status);
+    const category = norm((m as any).category);
+    const verificationType = norm((m as any).verification_type);
+    const hasProof = !!(m as any).verification_proof;
+
+    if (status === 'claimed') {
+      return (
+        <Button fullWidth disabled variant="contained" sx={{ opacity: 0.5, bgcolor: 'rgba(255,255,255,0.1)' }}>
+          CONCLUÍDO
+        </Button>
+      );
+    }
+
+    if (status === 'completed') {
+      return (
+        <Button
+          fullWidth
+          variant="contained"
+          onClick={() => handleClaim(m)}
+          disabled={claimingId === (m as any).user_challenge_id}
+          sx={{
+            background: colors.btnGradient,
+            color: '#000',
+            fontWeight: 900,
+            animation: 'pulse-gold 2s infinite'
+          }}
+        >
+          {claimingId === (m as any).user_challenge_id ? 'RESGATANDO...' : 'RESGATAR RECOMPENSA'}
+        </Button>
+      );
+    }
+
+    if (verificationType === 'manual') {
+      if (status === 'in_progress' && hasProof) {
+        return (
+          <Button fullWidth disabled variant="outlined" sx={{ borderColor: 'rgba(255,255,255,0.2)', color: '#AAA' }}>
+            EM ANÁLISE
+          </Button>
+        );
       }
+
+      return (
+        <Button
+          fullWidth
+          variant="outlined"
+          startIcon={<UploadFile />}
+          onClick={() => { setSelectedMission(m); setProofDialog(true); }}
+          sx={{ borderColor: '#FFF', color: '#FFF', '&:hover': { borderColor: colors.primary, color: colors.primary } }}
+        >
+          ENVIAR PROVA
+        </Button>
+      );
+    }
+
+    if (['login', 'spin', 'invite', 'referral', 'check_invites'].includes(category)) {
+      return (
+        <Button fullWidth disabled variant="outlined" sx={{ borderColor: 'rgba(255,255,255,0.2)', color: '#AAA' }}>
+          EM PROGRESSO
+        </Button>
+      );
+    }
+
+    if (category === 'visit') {
+      const isVerifying = verifyingId === (m as any).challenge_id;
+      return (
+        <Button
+          fullWidth
+          variant="outlined"
+          onClick={() => handleVisit(m)}
+          disabled={isVerifying}
+          sx={{ borderColor: colors.primary, color: colors.primary, '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
+        >
+          {isVerifying ? 'VERIFICANDO...' : 'VISITAR'}
+        </Button>
+      );
+    }
+
+    return (
+      <Button fullWidth disabled variant="outlined" sx={{ borderColor: 'rgba(255,255,255,0.2)', color: '#AAA' }}>
+        INDISPONÍVEL
+      </Button>
+    );
   };
 
   return (
     <Box sx={{ position: 'relative', minHeight: '100vh', bgcolor: '#050510', overflowX: 'hidden' }}>
-        <Box sx={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-            <Box sx={{ position: 'absolute', top: '10%', right: '-10%', width: '40vw', height: '40vw', background: 'radial-gradient(circle, rgba(212, 175, 55, 0.05) 0%, transparent 70%)', filter: 'blur(80px)' }} />
-            <Box sx={{ position: 'absolute', inset: 0, opacity: 0.05, backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.2) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+      <Container maxWidth="lg" sx={{ py: 6, position: 'relative', zIndex: 1 }}>
+        <Box mb={6} textAlign="center">
+          <Typography variant="overline" sx={{ color: colors.primary, letterSpacing: 4, fontWeight: 700, mb: 1, display: 'block' }}>
+            {t('challenges_area')}
+          </Typography>
+          <Typography
+            variant="h3"
+            sx={{
+              fontFamily: 'Montserrat',
+              fontWeight: 900,
+              color: '#FFF',
+              textTransform: 'uppercase',
+              textShadow: `0 0 20px ${colors.primary}40`
+            }}
+          >
+            CENTRAL DE <span style={{ color: colors.primary }}>MISSÕES</span>
+          </Typography>
         </Box>
 
-        <Container maxWidth="lg" sx={{ py: 6, position: 'relative', zIndex: 1 }}>
-        
-        <Box mb={6} display="flex" flexDirection="column" alignItems="center" textAlign="center">
-            <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 4, mb: 1 }}>
-                {t('challenges_area')}
-            </Typography>
-            <Typography variant="h3" sx={{ 
-                fontFamily: 'Montserrat', 
-                fontWeight: 900, 
-                color: '#D4AF37',
-                textTransform: 'uppercase',
-                textShadow: '0 0 30px rgba(212, 175, 55, 0.2)'
-            }}>
-                {t('challenges_title')}
-            </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 600, mt: 2 }}>
-                {t('challenges_subtitle')}
-            </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 5 }}>
+          <Tabs
+            value={activeTab}
+            onChange={(_, v) => setActiveTab(v)}
+            textColor="inherit"
+            TabIndicatorProps={{ style: { backgroundColor: colors.primary } }}
+            sx={{
+              bgcolor: 'rgba(255,255,255,0.03)',
+              borderRadius: 3,
+              '& .MuiTab-root': { fontWeight: 700, color: '#888', '&.Mui-selected': { color: colors.primary } }
+            }}
+          >
+            <Tab label={t('tab_daily')} />
+            <Tab label={t('tab_weekly')} />
+            <Tab label={t('tab_monthly')} />
+            <Tab label={t('tab_permanent')} />
+          </Tabs>
         </Box>
-
-        <Paper sx={{ 
-            bgcolor: 'rgba(15, 18, 29, 0.8)', 
-            backdropFilter: 'blur(10px)',
-            borderRadius: 4, 
-            p: 1, 
-            mb: 5, 
-            border: '1px solid rgba(255,255,255,0.05)',
-            display: 'flex',
-            justifyContent: 'center',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
-        }}>
-            <Tabs 
-                value={activeTab} 
-                onChange={(_, v) => setActiveTab(v)} 
-                variant="scrollable"
-                scrollButtons="auto"
-                allowScrollButtonsMobile
-                textColor="primary" 
-                indicatorColor="primary"
-                sx={{
-                    '& .MuiTabs-indicator': { height: 3, borderRadius: 2, boxShadow: '0 0 10px #D4AF37', bottom: 5 },
-                    '& .MuiTab-root': { 
-                        fontWeight: 800, 
-                        fontSize: '0.85rem', 
-                        mx: 1,
-                        minHeight: 60,
-                        transition: 'all 0.3s',
-                        '&.Mui-selected': { color: '#FFF' } 
-                    }
-                }}
-            >
-                <Tab icon={<Timer sx={{ mb: 0.5 }} />} label={t('tab_daily')} />
-                <Tab icon={<Repeat sx={{ mb: 0.5 }} />} label={t('tab_weekly')} />
-                <Tab icon={<WorkspacePremium sx={{ mb: 0.5 }} />} label={t('tab_monthly')} />
-                <Tab icon={<MilitaryTech sx={{ mb: 0.5 }} />} label={t('tab_career')} />
-            </Tabs>
-        </Paper>
 
         {loading ? (
-            <Box display="flex" justifyContent="center" p={10}>
-                <CircularProgress color="primary" />
-            </Box>
+          <Box display="flex" justifyContent="center" p={10}>
+            <CircularProgress sx={{ color: colors.primary }} />
+          </Box>
         ) : (
-            <Grid container spacing={3}>
-            <AnimatePresence mode='wait'>
-            {challenges.map((c) => {
-                const isClaimed = c.status === 'claimed';
-                const isCompleted = c.status === 'completed' || isClaimed; 
-                const isInProgress = c.status === 'in_progress';
-                const isVisitMission = c.category === 'visit';
-                const isVerifying = verifyingId === c.id;
-                
+          <Grid container spacing={3}>
+            <AnimatePresence mode="wait">
+              {getFilteredMissions().map((m) => {
+                const status = norm((m as any).status);
+                const isClaimed = status === 'claimed';
+                const goal = Number((m as any).goal || 0);
+                const cur = Number((m as any).current_value || 0);
+                const progressPct = goal > 0 ? Math.min(100, Math.floor((cur / goal) * 100)) : 0;
+
                 return (
-                    <Grid item xs={12} md={6} key={c.id} component={motion.div} layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                    <Paper sx={{ 
-                        position: 'relative',
-                        height: '100%', 
-                        background: 'linear-gradient(145deg, #13131F 0%, #0b0b12 100%)',
+                  <Grid
+                    item
+                    xs={12}
+                    md={6}
+                    key={(m as any).user_challenge_id || (m as any).challenge_id}
+                    component={motion.div as any}
+                    // @ts-ignore (framer-motion)
+                    layout
+                    // @ts-ignore (framer-motion)
+                    initial={{ opacity: 0, y: 20 }}
+                    // @ts-ignore (framer-motion)
+                    animate={{ opacity: 1, y: 0 }}
+                    // @ts-ignore (framer-motion)
+                    exit={{ opacity: 0 }}
+                  >
+                    <Paper
+                      elevation={0}
+                      sx={{
+                        background: isClaimed ? colors.completedBg : colors.background,
+                        backdropFilter: 'blur(20px)',
+                        border: isClaimed ? colors.completedBorder : colors.border,
                         borderRadius: 4,
-                        border: '1px solid rgba(255,255,255,0.05)',
+                        p: 3,
+                        position: 'relative',
                         overflow: 'hidden',
-                        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                        boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                         '&:hover': {
-                            transform: 'translateY(-5px) scale(1.01)',
-                            boxShadow: '0 20px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(212, 175, 55, 0.3)',
+                          transform: 'translateY(-4px)',
+                          boxShadow: `0 12px 40px ${colors.primary}30`
                         }
-                    }}>
-                        {isCompleted && !isClaimed && (
-                            <Box sx={{ position: 'absolute', inset: 0, animation: 'pulse-bg 2s infinite', opacity: 0.1, background: 'radial-gradient(circle, #D4AF37 0%, transparent 70%)' }} />
-                        )}
+                      }}
+                    >
+                      {isClaimed && (
+                        <Chip
+                          icon={<CheckCircle sx={{ color: '#fff !important' }} />}
+                          label="CONCLUÍDO"
+                          size="small"
+                          sx={{
+                            position: 'absolute',
+                            top: 20,
+                            right: 20,
+                            bgcolor: colors.primary,
+                            color: '#000',
+                            fontWeight: 900
+                          }}
+                        />
+                      )}
 
-                        <Box p={3} display="flex" flexDirection="column" height="100%" position="relative" zIndex={2}>
-                            
-                            <Box display="flex" gap={2.5} mb={2}>
-                                <Box sx={{ 
-                                    width: 60, height: 60, 
-                                    borderRadius: '50%', 
-                                    background: 'linear-gradient(135deg, #222 0%, #111 100%)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    border: `2px solid ${isCompleted ? '#D4AF37' : '#333'}`,
-                                    color: isCompleted ? '#D4AF37' : '#666',
-                                    boxShadow: isCompleted ? '0 0 20px rgba(212,175,55,0.3)' : 'none'
-                                }}>
-                                    {getIcon(c.icon)}
-                                </Box>
-                                <Box flexGrow={1}>
-                                    <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                                        <Typography variant="h6" fontWeight={800} color="white" lineHeight={1.2} sx={{ fontSize: '1.1rem' }}>
-                                            {c.title}
-                                        </Typography>
-                                        {isClaimed && <CheckCircle color="success" />}
-                                    </Box>
-                                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontSize: '0.85rem', lineHeight: 1.5 }}>
-                                        {c.description}
-                                    </Typography>
-                                </Box>
-                            </Box>
-
-                            <Box sx={{ 
-                                display: 'flex', gap: 1, flexWrap: 'wrap', mb: 3, 
-                                p: 1.5, borderRadius: 2, bgcolor: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.03)' 
-                            }}>
-                                {c.reward_xp > 0 && (
-                                    <Chip 
-                                        icon={<Star sx={{ color: '#D4AF37 !important', fontSize: 16 }} />}
-                                        label={`${c.reward_xp} XP`}
-                                        size="small"
-                                        sx={{ bgcolor: 'rgba(212, 175, 55, 0.1)', color: '#D4AF37', fontWeight: 800, border: '1px solid rgba(212, 175, 55, 0.2)' }}
-                                    />
-                                )}
-                                {c.reward_money > 0 && (
-                                    <Chip 
-                                        icon={<Diamond sx={{ color: '#90CAF9 !important', fontSize: 16 }} />}
-                                        label={`${c.reward_money} LC`}
-                                        size="small"
-                                        sx={{ bgcolor: 'rgba(33, 150, 243, 0.1)', color: '#90CAF9', fontWeight: 800, border: '1px solid rgba(33, 150, 243, 0.2)' }}
-                                    />
-                                )}
-                                {c.reward_spins > 0 && (
-                                    <Chip 
-                                        icon={<Casino sx={{ color: '#4CAF50 !important', fontSize: 16 }} />}
-                                        label={`+${c.reward_spins} GIROS`}
-                                        size="small"
-                                        sx={{ bgcolor: 'rgba(76, 175, 80, 0.1)', color: '#4CAF50', fontWeight: 800, border: '1px solid rgba(76, 175, 80, 0.2)' }}
-                                    />
-                                )}
-                            </Box>
-
-                            <Box mt="auto">
-                                {c.verification_type === 'automatic' && !isClaimed && !isVisitMission && (
-                                    <Box mb={2}>
-                                        <Box display="flex" justifyContent="space-between" mb={0.5}>
-                                            <Typography variant="caption" color="#888" fontWeight={600}>PROGRESSO</Typography>
-                                            <Typography variant="caption" color="white" fontWeight={700}>{c.progress}%</Typography>
-                                        </Box>
-                                        <LinearProgress 
-                                            variant="determinate" 
-                                            value={c.progress || 0} 
-                                            sx={{ 
-                                                height: 8, 
-                                                borderRadius: 4, 
-                                                bgcolor: '#222',
-                                                '& .MuiLinearProgress-bar': { 
-                                                    bgcolor: isCompleted ? '#4CAF50' : '#D4AF37',
-                                                    borderRadius: 4
-                                                }
-                                            }} 
-                                        />
-                                    </Box>
-                                )}
-
-                                {isClaimed ? (
-                                    <Button fullWidth disabled variant="outlined" sx={{ borderColor: '#333', color: '#555', fontWeight: 700 }}>
-                                        {c.type === 'daily' ? "VOLTE AMANHÃ" : t('btn_completed')}
-                                    </Button>
-                                ) : isVisitMission ? (
-                                    <Button
-                                        fullWidth
-                                        variant="contained"
-                                        endIcon={isVerifying ? <CircularProgress size={20} color="inherit" /> : <OpenInNew />}
-                                        onClick={() => handleVisit(c)}
-                                        disabled={isVerifying}
-                                        sx={{ 
-                                            bgcolor: isVerifying ? '#333' : '#D4AF37', 
-                                            color: isVerifying ? '#888' : '#000', 
-                                            fontWeight: 800,
-                                            '&:hover': { bgcolor: isVerifying ? '#333' : '#F3E5AB' } 
-                                        }}
-                                    >
-                                        {isVerifying ? "VERIFICANDO ACESSO..." : "VISITAR E VALIDAR"}
-                                    </Button>
-                                ) : c.verification_type === 'manual' ? (
-                                    <Box display="flex" flexDirection="column" gap={1}>
-                                        <Button
-                                            fullWidth
-                                            size="small"
-                                            color="info"
-                                            startIcon={<LinkIcon />}
-                                            onClick={() => window.open(PARTNER_LINK, '_blank')}
-                                            sx={{ fontSize: '0.75rem', color: '#90CAF9' }}
-                                        >
-                                            ACESSAR PLATAFORMA
-                                        </Button>
-                                        {isInProgress ? (
-                                            <Button fullWidth disabled variant="outlined" sx={{ borderColor: '#2196F3', color: '#2196F3', fontWeight: 700 }}>
-                                                EM ANÁLISE...
-                                            </Button>
-                                        ) : (
-                                            <Button 
-                                                fullWidth
-                                                variant="outlined" 
-                                                endIcon={<UploadFile />}
-                                                onClick={() => { setSelectedChallenge(c); setProofDialog(true); }}
-                                                sx={{ borderColor: '#555', color: '#AAA', '&:hover': { borderColor: '#D4AF37', color: '#D4AF37' } }}
-                                            >
-                                                {t('btn_proof')}
-                                            </Button>
-                                        )}
-                                    </Box>
-                                ) : (
-                                    <Button 
-                                        fullWidth
-                                        disabled 
-                                        startIcon={<LockClock />}
-                                        sx={{ bgcolor: 'rgba(255,255,255,0.03)', color: '#666' }}
-                                    >
-                                        {t('btn_in_progress')}
-                                    </Button>
-                                )}
-                            </Box>
+                      <Box display="flex" gap={2.5} mb={3} alignItems="flex-start">
+                        <Avatar
+                          sx={{
+                            width: 64,
+                            height: 64,
+                            background: colors.iconBg,
+                            boxShadow: `0 0 20px ${colors.primary}40`,
+                            borderRadius: 3
+                          }}
+                        >
+                          {getIcon((m as any).icon)}
+                        </Avatar>
+                        <Box mt={0.5}>
+                          <Typography variant="h6" fontWeight={800} color="#FFF" lineHeight={1.2}>
+                            {(m as any).title}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.4 }}>
+                            {(m as any).description}
+                          </Typography>
                         </Box>
+                      </Box>
+
+                      <Stack direction="row" spacing={1} mb={3}>
+                        {Number((m as any).reward_xp || 0) > 0 && (
+                          <Chip
+                            icon={<Star sx={{ color: `${colors.primary} !important`, fontSize: 16 }} />}
+                            label={`${(m as any).reward_xp} XP`}
+                            variant="outlined"
+                            sx={{ borderColor: colors.primary, color: colors.primary, fontWeight: 700 }}
+                            size="small"
+                          />
+                        )}
+                        {Number((m as any).reward_money || 0) > 0 && (
+                          <Chip
+                            icon={<Diamond sx={{ color: `${colors.secondary} !important`, fontSize: 16 }} />}
+                            label={`${(m as any).reward_money} LC`}
+                            variant="outlined"
+                            sx={{ borderColor: colors.secondary, color: colors.secondary, fontWeight: 700 }}
+                            size="small"
+                          />
+                        )}
+                        {Number((m as any).reward_spins || 0) > 0 && (
+                          <Chip
+                            icon={<Casino sx={{ color: '#4CAF50 !important', fontSize: 16 }} />}
+                            label={`+${(m as any).reward_spins} GIROS`}
+                            variant="outlined"
+                            sx={{ borderColor: '#4CAF50', color: '#4CAF50', fontWeight: 700 }}
+                            size="small"
+                          />
+                        )}
+                      </Stack>
+
+                      <Box sx={{ mb: 3 }}>
+                        <Box display="flex" justifyContent="space-between" mb={1} alignItems="center">
+                          <Typography variant="caption" sx={{ color: 'text.secondary' }}>PROGRESSO</Typography>
+                          <Typography variant="caption" color="white" fontWeight={700}>
+                            {cur} / {goal}
+                          </Typography>
+                        </Box>
+                        <LinearProgress
+                          variant="determinate"
+                          value={progressPct}
+                          sx={{
+                            height: 8,
+                            borderRadius: 4,
+                            backgroundColor: 'rgba(255,255,255,0.05)',
+                            '& .MuiLinearProgress-bar': {
+                              background: isClaimed ? '#FFF' : colors.progressGradient,
+                              borderRadius: 4
+                            }
+                          }}
+                        />
+                      </Box>
+
+                      <Box>
+                        {getButtonState(m)}
+                      </Box>
                     </Paper>
-                    </Grid>
+                  </Grid>
                 );
-            })}
+              })}
             </AnimatePresence>
-            </Grid>
+
+            {getFilteredMissions().length === 0 && (
+              <Grid item xs={12}>
+                <Paper sx={{ p: 4, textAlign: 'center', bgcolor: 'transparent', border: '1px dashed #444' }}>
+                  <Typography color="text.secondary">Nenhuma missão disponível nesta categoria no momento.</Typography>
+                </Paper>
+              </Grid>
+            )}
+          </Grid>
         )}
 
-        <Dialog 
-            open={proofDialog} 
-            onClose={() => setProofDialog(false)} 
-            PaperProps={{ 
-                sx: { 
-                    bgcolor: '#13131F', 
-                    color: 'white', 
-                    border: '1px solid rgba(212, 175, 55, 0.2)',
-                    borderRadius: 4,
-                    boxShadow: '0 0 50px rgba(0,0,0,0.8)'
-                } 
-            }}
-            fullWidth
-            maxWidth="sm"
+        <Dialog
+          open={proofDialog}
+          onClose={() => !isUploading && setProofDialog(false)}
+          PaperProps={{
+            sx: {
+              bgcolor: '#13131F',
+              color: 'white',
+              border: `1px solid ${colors.primary}`,
+              borderRadius: 4
+            }
+          }}
+          fullWidth
+          maxWidth="sm"
         >
-            <DialogTitle sx={{ fontFamily: 'Montserrat', fontWeight: 700 }}>
-                {t('proof_dialog_title')}
-            </DialogTitle>
-            <DialogContent>
-                <Typography variant="body2" color="text.secondary" mb={2}>
-                    {t('proof_dialog_desc')}
-                </Typography>
-                <TextField 
-                    fullWidth 
-                    multiline 
-                    rows={4} 
-                    placeholder="Cole aqui o link do print ou descreva sua ação (ex: Nome de usuário na plataforma parceira)..." 
-                    value={proofText} 
-                    onChange={e => setProofText(e.target.value)} 
-                    sx={{ 
-                        bgcolor: 'rgba(0,0,0,0.2)',
-                        '& .MuiOutlinedInput-root': {
-                            '& fieldset': { borderColor: 'rgba(255,255,255,0.1)' },
-                            '&:hover fieldset': { borderColor: '#D4AF37' },
-                            '&.Mui-focused fieldset': { borderColor: '#D4AF37' },
-                            color: 'white'
-                        }
-                    }} 
-                />
-            </DialogContent>
-            <DialogActions sx={{ p: 3 }}>
-                <Button onClick={() => setProofDialog(false)} sx={{ color: 'gray' }}>{t('btn_cancel')}</Button>
-                <Button 
-                    onClick={handleSubmitProof} 
-                    variant="contained"
-                    endIcon={<ArrowForward />}
-                    sx={{ fontWeight: 800, bgcolor: '#D4AF37', color: '#000' }}
-                >
-                    {t('btn_send_analysis')}
-                </Button>
-            </DialogActions>
-        </Dialog>
-        
-        <Snackbar 
-            open={toast.open} 
-            autoHideDuration={6000} 
-            onClose={() => setToast({...toast, open: false})}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        >
-            <Alert 
-                severity="success" 
-                sx={{ 
-                    bgcolor: '#4CAF50', color: '#FFF', fontWeight: 700, 
-                    boxShadow: '0 0 20px rgba(76, 175, 80, 0.5)' 
-                }}
-            >
-                {toast.msg}
-            </Alert>
-        </Snackbar>
+          <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {t('proof_dialog_title')}
+            {!isUploading && (
+              <IconButton onClick={() => setProofDialog(false)} sx={{ color: 'gray' }}>
+                <Close />
+              </IconButton>
+            )}
+          </DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" color="text.secondary" mb={3}>
+              Para validar esta missão, envie um print ou foto comprovando a ação.
+            </Typography>
 
-        <style>
-            {`@keyframes pulse-bg { 0% { opacity: 0.1; } 50% { opacity: 0.3; } 100% { opacity: 0.1; } }`}
-        </style>
-        </Container>
+            <Box mb={3}>
+              <input accept="image/*" style={{ display: 'none' }} id="upload-proof" type="file" onChange={handleFileChange} />
+              <label htmlFor="upload-proof">
+                <Box
+                  sx={{
+                    border: `2px dashed ${selectedFile ? colors.primary : 'rgba(255,255,255,0.2)'}`,
+                    borderRadius: 3,
+                    p: 3,
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    bgcolor: selectedFile ? `${colors.primary}10` : 'transparent',
+                    '&:hover': { borderColor: colors.primary }
+                  }}
+                >
+                  {selectedFile ? (
+                    <Box display="flex" alignItems="center" justifyContent="center" gap={1}>
+                      <ImageIcon sx={{ color: colors.primary }} />
+                      <Typography>{selectedFile.name}</Typography>
+                    </Box>
+                  ) : (
+                    <Box>
+                      <CloudUpload sx={{ fontSize: 40, color: '#AAA', mb: 1 }} />
+                      <Typography color="#AAA">Clique para selecionar Imagem</Typography>
+                    </Box>
+                  )}
+                </Box>
+              </label>
+            </Box>
+
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              label="Contexto / Descrição"
+              value={proofText}
+              onChange={(e) => setProofText(e.target.value)}
+              sx={{
+                bgcolor: 'rgba(0,0,0,0.2)',
+                '& .MuiOutlinedInput-root': {
+                  '& fieldset': { borderColor: 'rgba(255,255,255,0.1)' },
+                  '&:hover fieldset': { borderColor: colors.primary },
+                  '&.Mui-focused fieldset': { borderColor: colors.primary },
+                  color: 'white'
+                },
+                '& label.Mui-focused': { color: colors.primary }
+              }}
+            />
+          </DialogContent>
+          <DialogActions sx={{ p: 3 }}>
+            <Button onClick={() => setProofDialog(false)} disabled={isUploading} sx={{ color: 'gray' }}>
+              {t('btn_cancel')}
+            </Button>
+            <Button
+              onClick={handleSubmitProof}
+              variant="contained"
+              disabled={isUploading}
+              sx={{ bgcolor: colors.primary, color: '#000', fontWeight: 800 }}
+            >
+              {isUploading ? 'ENVIANDO...' : t('btn_send_analysis')}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        <Snackbar
+          open={toast.open}
+          autoHideDuration={6000}
+          onClose={() => setToast({ ...toast, open: false })}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert severity={toast.type || 'success'} sx={{ bgcolor: toast.type === 'error' ? '#d32f2f' : '#4CAF50', color: '#FFF', fontWeight: 700 }}>
+            {toast.msg}
+          </Alert>
+        </Snackbar>
+      </Container>
     </Box>
   );
 };
+
 export default Challenges;

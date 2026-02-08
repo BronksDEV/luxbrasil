@@ -1,3 +1,4 @@
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
@@ -6,6 +7,7 @@ import { ParallaxProvider } from 'react-scroll-parallax';
 import App from './App';
 import { theme } from './constants';
 import { AuthProvider } from './contexts/AuthContext';
+import { CustomThemeProvider } from './contexts/ThemeContext';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -20,7 +22,9 @@ root.render(
         <CssBaseline />
         <ParallaxProvider>
           <AuthProvider>
-            <App />
+            <CustomThemeProvider>
+                <App />
+            </CustomThemeProvider>
           </AuthProvider>
         </ParallaxProvider>
       </ThemeProvider>

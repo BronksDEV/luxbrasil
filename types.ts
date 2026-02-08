@@ -92,6 +92,25 @@ export enum PageRoute {
   LEGAL_DATA = '/legal/data'
 }
 
+// NOVA INTERFACE ROBUSTA PARA O RPC sync_user_missions
+export interface Mission {
+  user_challenge_id: string;
+  challenge_id: string;
+  title: string;
+  description: string;
+  current_value: number;
+  goal: number;
+  status: 'active' | 'completed' | 'claimed';
+  reward_type: 'spins' | 'money' | 'xp' | 'both';
+  reward_spins: number;
+  reward_money: number;
+  reward_xp: number;
+  icon: string;
+  frequency: 'daily' | 'weekly' | 'monthly' | 'permanent';
+  category: string; // Agora Obrigatório e vindo do banco
+}
+
+// Mantendo interface antiga para compatibilidade se algo quebrar, mas deve ser depreciada
 export interface Challenge {
   id: string;
   title: string;
@@ -102,7 +121,7 @@ export interface Challenge {
   reward_type: 'spins' | 'money' | 'both';
   reward_spins: number;
   reward_money: number;
-  reward_xp: number; // Novo campo XP
+  reward_xp: number;
   verification_type: string;
   icon: string;
   progress?: number;
@@ -122,4 +141,12 @@ export interface Referral {
   spun_roulette: boolean;
   reward_paid: boolean;
   created_at: string;
+}
+
+export interface SystemThemeConfig {
+  id?: string;
+  active: boolean;
+  name: string; // 'carnival' | 'default' | 'custom'
+  custom_css?: string; // Para injeção de script/css
+  custom_html_head?: string;
 }
