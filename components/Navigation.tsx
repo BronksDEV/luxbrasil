@@ -1,8 +1,9 @@
+
 import React, { useState } from 'react';
 import { 
   AppBar, Toolbar, Typography, Button, Box, Avatar, Menu, MenuItem, 
   IconButton, Drawer, List, ListItemButton, 
-  ListItemIcon, ListItemText, Divider, Chip, useScrollTrigger, useMediaQuery, Container, Snackbar, Alert, Paper, SvgIcon, Skeleton
+  ListItemIcon, ListItemText, Divider, Chip, useScrollTrigger, useMediaQuery, Container, Snackbar, Alert, Paper, SvgIcon
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -14,8 +15,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { useThemeConfig } from '../contexts/ThemeContext';
 import { 
   Menu as MenuIcon, Dashboard as DashboardIcon, 
-  Close, MilitaryTech, Bolt, Storefront, Diamond, Edit, Star
+  Close, MilitaryTech, Bolt, Storefront, Diamond, Edit, Star, Add
 } from '@mui/icons-material';
+import { calculateLevelInfo } from '../utils/levelsystem';
 
 // --- CUSTOM ICONS (Baseado nos SVGs fornecidos) ---
 
@@ -40,7 +42,7 @@ const ProfileIcon = (props: any) => (
   <SvgIcon {...props} viewBox="0 0 24 24">
      <path opacity="0.4" d="M12.1207 12.78C12.0507 12.77 11.9607 12.77 11.8807 12.78C10.1207 12.72 8.7207 11.28 8.7207 9.50998C8.7207 7.69998 10.1807 6.22998 12.0007 6.22998C13.8107 6.22998 15.2807 7.69998 15.2807 9.50998C15.2707 11.28 13.8807 12.72 12.1207 12.78Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"></path> 
      <path opacity="0.34" d="M18.7398 19.3801C16.9598 21.0101 14.5998 22.0001 11.9998 22.0001C9.39977 22.0001 7.03977 21.0101 5.25977 19.3801C5.35977 18.4401 5.95977 17.5201 7.02977 16.8001C9.76977 14.9801 14.2498 14.9801 16.9698 16.8001C18.0398 17.5201 18.6398 18.4401 18.7398 19.3801Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"></path> 
-     <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"></path> 
+     <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 2 12 22Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"></path> 
   </SvgIcon>
 );
 
@@ -60,7 +62,7 @@ const Navigation: React.FC<NavigationProps> = ({ user, onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useLanguage();
-  const { refreshUser, loading } = useAuth(); // Usando loading do AuthContext
+  const { refreshUser } = useAuth();
   const { themeConfig } = useThemeConfig();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -70,9 +72,7 @@ const Navigation: React.FC<NavigationProps> = ({ user, onLogout }) => {
   const [successMsg, setSuccessMsg] = useState('');
 
   const isCarnival = themeConfig.active && themeConfig.name === 'carnival';
-  const themeColor = isCarnival ? '#9C27B0' : '#D4AF37';
-  const secondaryColor = isCarnival ? '#00E676' : '#AA8C2C';
-
+  
   // Scroll effect for dynamic opacity
   const trigger = useScrollTrigger({
     disableHysteresis: true,
@@ -88,31 +88,43 @@ const Navigation: React.FC<NavigationProps> = ({ user, onLogout }) => {
     setSuccessMsg(t('profile_updated'));
   };
 
-  const avatarUrl = user 
-    ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.full_name.replace(/\s/g, '')}&backgroundColor=000000&clothing=blazerAndShirt&clothingColor=${isCarnival ? '9c27b0' : 'd4af37'}&hairColor=${isCarnival ? '9c27b0' : 'd4af37'}&skinColor=edb98a&top=shortFlat`
-    : '';
+  const generateAvatarUrl = (user: UserProfile | null): string => {
+    if (!user) return '';
 
+    const avatarId = user.avatar_id;
+
+    if (avatarId) {
+        const parts = avatarId.split(':');
+        if (parts.length === 2) {
+            const [style, seed] = parts;
+            return `https://api.dicebear.com/7.x/${style}/svg?seed=${seed}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
+        }
+        // Backward compatibility for old seeds (assume 'adventurer')
+        return `https://api.dicebear.com/7.x/adventurer/svg?seed=${avatarId}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
+    }
+    
+    // Default fallback based on name
+    const color = isCarnival ? '9c27b0' : 'd4af37';
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.full_name.replace(/\s/g, '')}&backgroundColor=000000&clothing=blazerAndShirt&clothingColor=${color}&hairColor=${color}&skinColor=edb98a&top=shortFlat`;
+  };
+
+  const avatarUrl = generateAvatarUrl(user);
+  
   const isActive = (path: string) => location.pathname === path;
 
   // Safe Balance Display (LuxCoins agora)
   const displayCoins = user?.lux_coins != null ? user.lux_coins : 0;
 
   // Level Logic
-  let levelBorderColor = '#C0C0C0'; // Default Silver
-  let currentLevel = 1;
-  let levelName = 'SILVER';
-  if (user) {
-      const xp = user.xp || 0;
-      currentLevel = Math.min(Math.floor(xp / 1000) + 1, 15);
-      if (currentLevel >= 6 && currentLevel <= 10) {
-          levelBorderColor = '#D4AF37'; // Gold
-          levelName = 'GOLD';
-      }
-      else if (currentLevel >= 11) {
-          levelBorderColor = '#E5E4E2'; // Platinum
-          levelName = 'PLATINUM';
-      }
+  const { level: currentLevel, tierInfo } = calculateLevelInfo(user?.xp || 0);
+  let levelBorderColor = tierInfo.color;
+  const levelName = t(tierInfo.nameKey);
+
+  // Theme Override
+  if (isCarnival) {
+      levelBorderColor = '#9C27B0';
   }
+  const themeColor = isCarnival ? '#9C27B0' : '#D4AF37';
 
   // Custom Styled Link Button
   const NavLink = ({ to, icon, label }: { to: string, icon?: React.ReactNode, label: string }) => (
@@ -151,6 +163,22 @@ const Navigation: React.FC<NavigationProps> = ({ user, onLogout }) => {
       </Button>
   );
 
+  const menuItemStyle = {
+    borderRadius: 1,
+    mx: 1,
+    mb: 0.5,
+    py: 1.2,
+    color: '#E0E0E0',
+    transition: 'all 0.2s',
+    '&:hover': {
+        bgcolor: isCarnival ? 'rgba(156, 39, 176, 0.15)' : 'rgba(212, 175, 55, 0.15)',
+        color: themeColor,
+        transform: 'translateX(5px)',
+        '& .MuiListItemIcon-root': { color: themeColor }
+    },
+    '& .MuiListItemIcon-root': { minWidth: 32, color: '#666', transition: 'color 0.2s' }
+  };
+
   const drawerContent = (
     <Box sx={{ height: '100%', background: 'linear-gradient(180deg, #08090F 0%, #000 100%)', color: '#FFF', display: 'flex', flexDirection: 'column' }}>
         <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
@@ -158,7 +186,7 @@ const Navigation: React.FC<NavigationProps> = ({ user, onLogout }) => {
             <IconButton onClick={handleDrawerToggle} sx={{ color: '#FFF' }}><Close /></IconButton>
         </Box>
 
-        {user && !loading ? (
+        {user ? (
             <>
                 <Box sx={{ p: 3 }}>
                     <Paper 
@@ -330,47 +358,60 @@ const Navigation: React.FC<NavigationProps> = ({ user, onLogout }) => {
 
                 {/* DESKTOP NAV */}
                 <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1 }}>
-                    {user && !loading ? (
+                    {user ? (
                         <>
-                            <Box sx={{ display: 'flex', mr: 4, bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 50, px: 2, py: 0.5 }}>
+                            <Box sx={{ display: 'flex', mr: 2, bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 50, px: 2, py: 0.5 }}>
                                 <NavLink to={PageRoute.DASHBOARD} label={t('dashboard')} />
                                 <NavLink to={PageRoute.VAULT} label={t('vault')} />
                                 <NavLink to={PageRoute.CHALLENGES} label={t('challenges_tab')} />
                             </Box>
 
-                            {/* LUX COINS & SPINS DISPLAY */}
+                            {/* REFORMULADO: HUD STATUS (Coins + Spins) */}
                             <Box sx={{ 
-                                display: 'flex', alignItems: 'center', gap: 2, mr: 2,
-                                borderRight: '1px solid rgba(255,255,255,0.1)', pr: 3
+                                display: 'flex', alignItems: 'center', gap: 0, mr: 2,
+                                bgcolor: 'rgba(0,0,0,0.4)',
+                                border: `1px solid ${themeColor}60`,
+                                borderRadius: 50,
+                                px: 2, py: 0.8,
+                                boxShadow: `0 0 15px ${themeColor}20`
                             }}>
-                                <Box sx={{ textAlign: 'right' }}>
-                                    <Typography variant="caption" display="block" color="text.secondary" sx={{ fontSize: '0.6rem', lineHeight: 1 }}>{t('lux_coins')}</Typography>
-                                    <Typography variant="body1" sx={{ fontWeight: 700, color: '#FFF', fontFamily: 'Montserrat', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
-                                        <Diamond sx={{ fontSize: 16, color: themeColor }} />
-                                        <span style={{ color: themeColor }}>{displayCoins}</span>
-                                    </Typography>
-                                </Box>
-                                
-                                <Button 
-                                    onClick={() => navigate(PageRoute.DASHBOARD)}
+                                {/* Coins Section */}
+                                <Box 
+                                    onClick={() => navigate(PageRoute.MY_PRIZES)}
                                     sx={{ 
-                                        background: isCarnival 
-                                            ? 'linear-gradient(90deg, #9C27B0 0%, #E040FB 100%)' 
-                                            : 'linear-gradient(90deg, #D4AF37 0%, #AA8C2C 100%)', 
-                                        color: '#000', 
-                                        px: 2.5, py: 0.8, 
-                                        borderRadius: 3, 
-                                        fontSize: '0.8rem', 
-                                        fontWeight: 800, 
-                                        boxShadow: `0 0 15px ${themeColor}40`,
-                                        display: 'flex', alignItems: 'center', gap: 1,
-                                        transition: 'all 0.2s',
-                                        '&:hover': { transform: 'translateY(-2px)', boxShadow: `0 5px 20px ${themeColor}60` }
+                                        display: 'flex', alignItems: 'center', gap: 1, 
+                                        cursor: 'pointer',
+                                        transition: 'opacity 0.2s',
+                                        '&:hover': { opacity: 0.8 }
                                     }}
                                 >
-                                    <Bolt sx={{ fontSize: 18 }} />
-                                    {user.available_spins ?? 0} SPINS
-                                </Button>
+                                    <Diamond sx={{ fontSize: 18, color: themeColor }} />
+                                    <Typography variant="body2" sx={{ fontWeight: 700, color: '#FFF', fontFamily: 'monospace', letterSpacing: 0.5 }}>
+                                        {displayCoins}
+                                    </Typography>
+                                </Box>
+
+                                {/* Divider */}
+                                <Divider orientation="vertical" flexItem sx={{ mx: 2, bgcolor: 'rgba(255,255,255,0.1)' }} />
+
+                                {/* Spins Section */}
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <Bolt sx={{ fontSize: 20, color: isCarnival ? '#E040FB' : '#FFD700' }} />
+                                    <Typography variant="body2" sx={{ fontWeight: 700, color: '#FFF', fontFamily: 'monospace', letterSpacing: 0.5 }}>
+                                        {user.available_spins ?? 0}
+                                    </Typography>
+                                    <IconButton 
+                                        onClick={() => navigate(PageRoute.VAULT)}
+                                        size="small" 
+                                        sx={{ 
+                                            ml: 0.5, width: 20, height: 20, 
+                                            bgcolor: themeColor, color: '#000', 
+                                            '&:hover': { bgcolor: '#FFF' } 
+                                        }}
+                                    >
+                                        <Add sx={{ fontSize: 14, fontWeight: 'bold' }} />
+                                    </IconButton>
+                                </Box>
                             </Box>
 
                             <LanguageSelector />
@@ -397,7 +438,7 @@ const Navigation: React.FC<NavigationProps> = ({ user, onLogout }) => {
                                     bgcolor: levelBorderColor, 
                                     borderRadius: '50%', 
                                     border: '1px solid #000',
-                                    display: 'flex',
+                                    display: 'flex', 
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     color: '#000',
@@ -415,82 +456,122 @@ const Navigation: React.FC<NavigationProps> = ({ user, onLogout }) => {
                                 onClose={() => setAnchorEl(null)} 
                                 PaperProps={{ 
                                     sx: { 
-                                        mt: 2, 
-                                        bgcolor: 'rgba(10, 10, 15, 0.9)', 
-                                        border: `1px solid ${themeColor}30`, 
+                                        mt: 1.5, 
+                                        bgcolor: '#0A0A0A', 
+                                        border: `1px solid ${themeColor}40`, 
                                         color: '#FFF',
-                                        backdropFilter: 'blur(20px)',
-                                        boxShadow: '0 20px 60px rgba(0,0,0,0.9)',
-                                        minWidth: 200,
+                                        boxShadow: `0 20px 60px -10px rgba(0,0,0,0.9), 0 0 30px ${themeColor}10`,
+                                        minWidth: 280,
                                         borderRadius: 3,
                                         overflow: 'hidden',
-                                        animation: 'fade-in 0.3s ease-out'
                                     } 
                                 }}
                                 transformOrigin={{ horizontal: 'right', vertical: 'top' }}
                                 anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
                             >
-                                {/* HEADER DO MENU */}
-                                <Box sx={{ p: 2, background: isCarnival ? 'linear-gradient(45deg, rgba(156, 39, 176, 0.2), transparent)' : 'linear-gradient(45deg, rgba(212, 175, 55, 0.1), transparent)' }}>
-                                    <Typography variant="overline" color="text.secondary" sx={{ fontSize: '0.65rem' }}>{t('my_account')}</Typography>
-                                    <Typography variant="subtitle1" fontWeight={700} noWrap>{user.full_name}</Typography>
-                                    <Chip size="small" label={`${user.lux_coins} LC`} sx={{ mt: 0.5, bgcolor: themeColor, color: '#000', fontWeight: 800, height: 20, fontSize: '0.65rem' }} />
+                                {/* HEADER */}
+                                <Box sx={{ 
+                                    p: 2.5, 
+                                    background: isCarnival 
+                                        ? 'linear-gradient(180deg, rgba(156, 39, 176, 0.15) 0%, rgba(0,0,0,0) 100%)' 
+                                        : 'linear-gradient(180deg, rgba(212, 175, 55, 0.15) 0%, rgba(0,0,0,0) 100%)',
+                                    borderBottom: '1px solid rgba(255,255,255,0.05)'
+                                }}>
+                                    <Box display="flex" alignItems="center" gap={2} mb={2}>
+                                        <Avatar 
+                                            src={avatarUrl} 
+                                            sx={{ 
+                                                width: 50, height: 50, 
+                                                bgcolor: '#000',
+                                                border: `2px solid ${themeColor}`,
+                                                boxShadow: `0 0 15px ${themeColor}40`
+                                            }} 
+                                        />
+                                        <Box overflow="hidden">
+                                            <Typography variant="caption" color={themeColor} fontWeight={800} letterSpacing={1} display="block">
+                                                {levelName}
+                                            </Typography>
+                                            <Typography variant="subtitle1" fontWeight={800} noWrap title={user.full_name} sx={{ lineHeight: 1.2 }}>
+                                                {user.full_name.split(' ')[0]} {user.full_name.split(' ').length > 1 ? user.full_name.split(' ')[1] : ''}
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                    
+                                    {/* Mini Stats Grid */}
+                                    <Box display="flex" gap={1}>
+                                        <Paper sx={{ 
+                                            flex: 1, 
+                                            bgcolor: 'rgba(255,255,255,0.03)', 
+                                            borderRadius: 2, 
+                                            p: 1, 
+                                            textAlign: 'center',
+                                            border: '1px solid rgba(255,255,255,0.05)'
+                                        }}>
+                                            <Typography variant="caption" color="text.secondary" fontSize="0.65rem" fontWeight={700} display="block">BALANCE</Typography>
+                                            <Typography variant="body2" fontWeight={800} color="#FFF">{user.lux_coins}</Typography>
+                                        </Paper>
+                                        <Paper sx={{ 
+                                            flex: 1, 
+                                            bgcolor: 'rgba(255,255,255,0.03)', 
+                                            borderRadius: 2, 
+                                            p: 1, 
+                                            textAlign: 'center',
+                                            border: '1px solid rgba(255,255,255,0.05)'
+                                        }}>
+                                            <Typography variant="caption" color="text.secondary" fontSize="0.65rem" fontWeight={700} display="block">XP</Typography>
+                                            <Typography variant="body2" fontWeight={800} color="#FFF">{user.xp}</Typography>
+                                        </Paper>
+                                    </Box>
                                 </Box>
-                                <Divider sx={{ bgcolor: 'rgba(255,255,255,0.05)' }} />
-                                
-                                <MenuItem onClick={() => { setProfileOpen(true); setAnchorEl(null); }} sx={{ py: 1.5, gap: 2, '&:hover': { bgcolor: 'rgba(255,255,255,0.03)', color: themeColor } }}>
-                                    <ProfileIcon fontSize="small" sx={{ color: 'inherit' }} /> 
-                                    <Typography variant="body2" fontWeight={600}>{t('edit_profile')}</Typography>
-                                </MenuItem>
-                                
-                                <MenuItem onClick={() => { navigate(PageRoute.MY_PRIZES); setAnchorEl(null); }} sx={{ py: 1.5, gap: 2, '&:hover': { bgcolor: 'rgba(255,255,255,0.03)', color: themeColor } }}>
-                                    <WalletIcon fontSize="small" sx={{ color: 'inherit' }} /> 
-                                    <Typography variant="body2" fontWeight={600}>{t('myPrizes')}</Typography>
-                                </MenuItem>
-                                
-                                {user.is_admin && (
-                                    <MenuItem onClick={() => { navigate(PageRoute.ADMIN); setAnchorEl(null); }} sx={{ py: 1.5, gap: 2, color: '#ff6666', '&:hover': { bgcolor: 'rgba(255,0,0,0.1)' } }}>
-                                        <AdminIcon fontSize="small" sx={{ color: 'inherit' }} /> 
-                                        <Typography variant="body2" fontWeight={600}>{t('admin')}</Typography>
+
+                                <Box sx={{ py: 1 }}>
+                                    <MenuItem onClick={() => { setProfileOpen(true); setAnchorEl(null); }} sx={menuItemStyle}>
+                                        <ListItemIcon><ProfileIcon fontSize="small" sx={{ color: 'inherit' }} /></ListItemIcon>
+                                        <ListItemText primary={t('edit_profile')} primaryTypographyProps={{ variant: 'body2', fontWeight: 600, fontFamily: 'Montserrat' }} />
                                     </MenuItem>
-                                )}
-                                
-                                <Divider sx={{ bgcolor: 'rgba(255,255,255,0.05)' }} />
-                                
-                                <MenuItem onClick={() => { onLogout(); setAnchorEl(null); }} sx={{ py: 1.5, gap: 2, color: '#AAA', '&:hover': { color: '#FFF' } }}>
-                                    <ExitIcon fontSize="small" sx={{ color: 'inherit' }} /> 
-                                    <Typography variant="body2" fontWeight={600}>{t('logout')}</Typography>
-                                </MenuItem>
+                                    
+                                    <MenuItem onClick={() => { navigate(PageRoute.MY_PRIZES); setAnchorEl(null); }} sx={menuItemStyle}>
+                                        <ListItemIcon><WalletIcon fontSize="small" sx={{ color: 'inherit' }} /></ListItemIcon>
+                                        <ListItemText primary={t('myPrizes')} primaryTypographyProps={{ variant: 'body2', fontWeight: 600, fontFamily: 'Montserrat' }} />
+                                    </MenuItem>
+                                    
+                                    {user.is_admin && (
+                                        <MenuItem onClick={() => { navigate(PageRoute.ADMIN); setAnchorEl(null); }} sx={{ ...menuItemStyle, color: '#ff6666', '&:hover': { bgcolor: 'rgba(255,0,0,0.1) !important', color: '#ff4444', transform: 'translateX(5px)' }, '& .MuiListItemIcon-root': { color: '#ff6666' } }}>
+                                            <ListItemIcon><AdminIcon fontSize="small" sx={{ color: 'inherit' }} /></ListItemIcon>
+                                            <ListItemText primary={t('admin')} primaryTypographyProps={{ variant: 'body2', fontWeight: 600, fontFamily: 'Montserrat' }} />
+                                        </MenuItem>
+                                    )}
+                                    
+                                    <Divider sx={{ my: 1, borderColor: 'rgba(255,255,255,0.05)' }} />
+                                    
+                                    <MenuItem onClick={() => { onLogout(); setAnchorEl(null); }} sx={{ ...menuItemStyle, mb: 0, color: '#AAA', '&:hover': { color: '#FFF', bgcolor: 'rgba(255,255,255,0.05)', transform: 'translateX(5px)' } }}>
+                                        <ListItemIcon><ExitIcon fontSize="small" sx={{ color: 'inherit' }} /></ListItemIcon>
+                                        <ListItemText primary={t('logout')} primaryTypographyProps={{ variant: 'body2', fontWeight: 600, fontFamily: 'Montserrat' }} />
+                                    </MenuItem>
+                                </Box>
                             </Menu>
                         </>
                     ) : (
                         <Box display="flex" gap={2} alignItems="center">
-                            {/* Se estiver carregando, mostra skeleton, senão mostra login/register */}
-                            {loading ? (
-                                <Skeleton variant="rectangular" width={200} height={40} sx={{ bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 2 }} />
-                            ) : (
-                                <>
-                                    <LanguageSelector />
-                                    <Button 
-                                        color="inherit" 
-                                        onClick={() => navigate(PageRoute.LOGIN)} 
-                                        sx={{ color: '#AAA', fontWeight: 600, '&:hover': { color: '#FFF' } }}
-                                    >
-                                        {t('login')}
-                                    </Button>
-                                    <Button 
-                                        variant="contained" 
-                                        onClick={() => navigate(PageRoute.REGISTER)}
-                                        sx={{
-                                            bgcolor: '#FFF', color: '#000', fontWeight: 800,
-                                            px: 3, borderRadius: 50,
-                                            '&:hover': { bgcolor: themeColor }
-                                        }}
-                                    >
-                                        {t('getStarted')}
-                                    </Button>
-                                </>
-                            )}
+                            <LanguageSelector />
+                            <Button 
+                                color="inherit" 
+                                onClick={() => navigate(PageRoute.LOGIN)} 
+                                sx={{ color: '#AAA', fontWeight: 600, '&:hover': { color: '#FFF' } }}
+                            >
+                                {t('login')}
+                            </Button>
+                            <Button 
+                                variant="contained" 
+                                onClick={() => navigate(PageRoute.REGISTER)}
+                                sx={{
+                                    bgcolor: '#FFF', color: '#000', fontWeight: 800,
+                                    px: 3, borderRadius: 50,
+                                    '&:hover': { bgcolor: themeColor }
+                                }}
+                            >
+                                {t('getStarted')}
+                            </Button>
                         </Box>
                     )}
                 </Box>

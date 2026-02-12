@@ -1,200 +1,496 @@
-
-import React, { useState, useEffect } from 'react';
-import { Box, Typography, Snackbar, Alert, List, ListItem, ListItemText, Chip, Button, Avatar, Divider, Paper, TextField, InputAdornment, ListItemAvatar, Grid } from '@mui/material';
-import { WhatsApp, Telegram, Groups, Share, AccessTime, HowToReg, Pending, CheckCircle, Person, EmojiEvents } from '@mui/icons-material';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Box, Typography, Snackbar, List, ListItem, ListItemText, Chip,
+  Button, Avatar, TextField, InputAdornment, CircularProgress
+} from '@mui/material';
+import {
+  WhatsApp, Telegram, HourglassEmpty, CheckCircle, PersonAdd,
+  Bolt, Star, Diamond, Leaderboard
+} from '@mui/icons-material';
 import { supabase, api } from '../services/api';
 import { useLanguage } from '../hooks/useLanguage';
+import { DetailedReferral, RankingEntry } from '../types';
+import { motion } from 'framer-motion';
+import MagicBento, { BentoCardProps } from './MagicBento';
+import { useAuth } from '../contexts/AuthContext';
+import { useThemeConfig } from '../contexts/ThemeContext';
 
-interface InviteSystemProps {
-  userCode: string;
-  inviteCount: number;
-  inviteEarnings: number;
+// Tipos “reais” que podem vir do Supabase nesse select (às vezes object, às vezes array)
+type ReferredMaybe =
+  | { full_name: string; created_at: string }
+  | { full_name: string; created_at: string }[]
+  | null;
+
+type ReferralRowFromDb = {
+  id: string;
+  created_at: string;
+  reward_paid: boolean | null;
+  referred: ReferredMaybe;
+};
+
+function normalizeReferral(row: ReferralRowFromDb): DetailedReferral {
+  const referred =
+    Array.isArray(row.referred) ? (row.referred[0] ?? null) : row.referred;
+
+  // Agora garante que `referred` é objeto ou null, como seu DetailedReferral espera
+  return {
+    ...(row as any),
+    referred,
+  } as DetailedReferral;
 }
 
-const InviteSystem: React.FC<InviteSystemProps> = ({ userCode, inviteCount, inviteEarnings }) => {
+const InviteSystem: React.FC = () => {
+  const { user } = useAuth();
   const { t } = useLanguage();
+  const { themeConfig } = useThemeConfig();
+  const isCarnival = themeConfig.active && themeConfig.name === 'carnival';
+
   const [copied, setCopied] = useState(false);
-  const [referrals, setReferrals] = useState<any[]>([]);
-  const [notification, setNotification] = useState<{open: boolean, message: string}>({ open: false, message: '' });
+  const [referrals, setReferrals] = useState<DetailedReferral[]>([]);
+  const [currentUserRank, setCurrentUserRank] = useState<RankingEntry | null>(null);
+
+  const fetchData = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      const [referralsRes, rankingData] = await Promise.all([
+        supabase
+          .from('referrals')
+          .select(
+            `id, created_at, reward_paid,
+             referred:profiles!referrals_referred_id_fkey(full_name, created_at)`
+          )
+          .eq('referrer_id', user.id)
+          .order('created_at', { ascending: false })
+          .returns<ReferralRowFromDb[]>(),
+        api.ranking.getMonthlyRanking(),
+      ]);
+
+      if (referralsRes.error) throw referralsRes.error;
+
+      const normalized = (referralsRes.data ?? []).map(normalizeReferral);
+      setReferrals(normalized);
+
+      if (rankingData) {
+        const me = rankingData.find((r) => r.is_current_user);
+        if (me) setCurrentUserRank(me);
+      }
+    } catch (e) {
+      console.error('Erro ao carregar dados do sistema de convite:', e);
+    }
+  }, [user]);
 
   useEffect(() => {
-    const fetchRef = async () => {
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if(user) {
-                await api.challenges.checkAction('check_invites').catch(e => console.error(e));
+    fetchData();
+  }, [fetchData]);
 
-                const { data, error } = await supabase
-                    .from('referrals')
-                    .select(`
-                        *,
-                        referred:profiles!referrals_referred_id_fkey (
-                            id,
-                            full_name,
-                            email,
-                            created_at
-                        )
-                    `)
-                    .eq('referrer_id', user.id)
-                    .order('created_at', { ascending: false });
-                
-                if (error) {
-                    const { data: referralsData } = await supabase.from('referrals').select('*').eq('referrer_id', user.id);
-                    if (referralsData && referralsData.length > 0) {
-                        const profileIds = referralsData.map((r: any) => r.referred_id);
-                        const { data: profiles } = await supabase.from('profiles').select('id, full_name, email, created_at').in('id', profileIds);
-                        
-                        const combined = referralsData.map((r: any) => {
-                            const p = profiles?.find((prof: any) => prof.id === r.referred_id);
-                            return { ...r, referred: { full_name: p?.full_name || 'Usuário', email: p?.email || '...', created_at: p?.created_at || r.created_at } };
-                        });
-                        setReferrals(combined);
-                    }
-                } else if (data && data.length > 0) {
-                    setReferrals(data);
-                }
-            }
-        } catch (e) {
-            console.error('Erro ao carregar referrals:', e);
-        }
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`realtime-referrals-for-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'referrals',
+          filter: `referrer_id=eq.${user.id}`,
+        },
+        () => fetchData()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
     };
-    fetchRef();
-  }, []);
+  }, [user, fetchData]);
+
+  if (!user) {
+    return (
+      <Box display="flex" justifyContent="center" py={5}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  // ✅ aqui estava errado: você usa invite_code no banco (e no SQL novo).
+  const {
+    invite_count: inviteCount = 0,
+    invite_earnings: inviteEarnings = 0,
+    invite_code: userCode = '', // <-- era referral_code
+    full_name,
+  } = user as any;
+
+  const firstName = (full_name || 'Usuário').split(' ')[0];
 
   const getBaseUrl = () => {
-      const origin = window.location.origin;
-      if (origin.includes('localhost') || origin.includes('127.0.0.1')) return origin;
-      return 'https://roletalux.com.br';
+    const origin = window.location.origin;
+    return origin.includes('localhost') ? origin : 'https://roletalux.com.br';
   };
 
   const inviteLink = `${getBaseUrl()}/#/register?code=${userCode}`;
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(inviteLink);
-    setCopied(true);
-    setNotification({ open: true, message: t('copied') });
-    setTimeout(() => setCopied(false), 3000);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(inviteLink).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }).catch(err => {
+        console.error('Falha ao copiar com a API moderna:', err);
+      });
+    } else {
+      // Fallback para navegadores mais antigos ou contextos não seguros
+      const textArea = document.createElement("textarea");
+      textArea.value = inviteLink;
+      textArea.style.position = "fixed";  // Evita rolar a página
+      textArea.style.opacity = '0';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
+      } catch (err) {
+        console.error('Fallback: Falha ao copiar', err);
+      }
+      document.body.removeChild(textArea);
+    }
   };
 
-  const shareData = { title: 'Lux Brasil', text: t('invite_share_text'), url: inviteLink };
+  const shareData = {
+    title: 'Lux Brasil',
+    text: t('invite_share_text', { name: firstName }),
+    url: inviteLink,
+  };
+
+  const confirmedCount = referrals.filter((r) => !!r.referred?.created_at).length;
+
+  // ⚠️ observação: no seu SQL novo, invite_count sobe quando CONFIRMA e paga.
+  // então conversionRate tende a ficar 100%. Mantive sua lógica como está.
+  const conversionRate =
+    inviteCount > 0 ? ((confirmedCount / inviteCount) * 100).toFixed(0) : '0';
+
+  const getAvatarUrl = (avatarId: string | undefined | null, defaultName: string) => {
+    if (avatarId) {
+      const parts = avatarId.split(':');
+      if (parts.length === 2) {
+        const [style, seed] = parts;
+        return `https://api.dicebear.com/7.x/${style}/svg?seed=${seed}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
+      }
+      return `https://api.dicebear.com/7.x/adventurer/svg?seed=${avatarId}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
+    }
+
+    const color = isCarnival ? '9c27b0' : 'd4af37';
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${defaultName.replace(
+      /\s/g,
+      ''
+    )}&backgroundColor=000000&clothing=blazerAndShirt&clothingColor=${color}&hairColor=${color}&skinColor=edb98a&top=shortFlat`;
+  };
+
+  const getReferralStatus = (ref: DetailedReferral) => {
+    if (ref.referred?.created_at) {
+      return {
+        icon: <CheckCircle />,
+        label: t('status_confirmed_paid'),
+        color: 'success' as const,
+      };
+    }
+    return {
+      icon: <HourglassEmpty />,
+      label: t('status_pending_confirmation'),
+      color: 'warning' as const,
+    };
+  };
+
+  const avatarUrl = getAvatarUrl((user as any)?.avatar_id, (user as any).full_name);
+
+  const GradientText = (props: any) => (
+    <Typography
+      component="h2"
+      {...props}
+      sx={{
+        background: 'linear-gradient(90deg, #9C27B0, #D4AF37, #00E676)',
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        fontWeight: 800,
+        fontSize: { xs: '0.9rem', md: '1.1rem' },
+        mb: 1,
+        ...props.sx,
+      }}
+    />
+  );
+
+  const cards: BentoCardProps[] = [
+    {
+      label: t('invite_competition'),
+      content: (
+        <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '100%' }}>
+          <div className="magic-bento-card__header">
+            <div className="magic-bento-card__label">{t('invite_competition')}</div>
+          </div>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 } }}>
+            <Avatar src={avatarUrl} sx={{ width: { xs: 40, sm: 56 }, height: { xs: 40, sm: 56 }, border: '2px solid #D4AF37' }} />
+            <Box>
+              <GradientText>{t('your_rank')}</GradientText>
+              <Typography variant="h4" fontWeight={900} color="white">
+                {currentUserRank ? `#${currentUserRank.rank}` : 'N/A'}
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+      ),
+    },
+    {
+      label: t('invite_performance'),
+      content: (
+        <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '100%' }}>
+          <div className="magic-bento-card__header">
+            <div className="magic-bento-card__label">{t('invite_performance')}</div>
+          </div>
+          <Box>
+            <GradientText>{t('invite_stats_total')}</GradientText>
+            <Typography variant="h4" fontWeight={900} color="white">{inviteCount}</Typography>
+            <Typography variant="body2" color="text.secondary">{t('invite_friends_unit')}</Typography>
+          </Box>
+        </Box>
+      ),
+    },
+    {
+      content: (
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <div className="magic-bento-card__header">
+            <GradientText sx={{ display: 'flex', alignItems: 'center', gap: '8px', mb: 0, fontSize: '1.1rem' }}>
+              <Leaderboard sx={{ fontSize: 18 }} />
+              {t('invite_manager_title')}
+            </GradientText>
+          </div>
+
+          {referrals.length > 0 ? (
+            <List sx={{ overflowY: 'auto', flex: 1, p: 0, mt: 2 }}>
+              {referrals.map((ref, index) => {
+                const status = getReferralStatus(ref);
+                return (
+                  <motion.div
+                    key={ref.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                  >
+                    <ListItem sx={{ p: 1, mb: 1, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.03)' }}>
+                      <Avatar
+                        sx={{
+                          bgcolor: 'rgba(212, 175, 55, 0.1)',
+                          color: '#D4AF37',
+                          mr: 1.5,
+                          width: 32,
+                          height: 32,
+                          fontSize: '0.9rem',
+                        }}
+                      >
+                        {ref.referred?.full_name?.charAt(0) || '?'}
+                      </Avatar>
+
+                      <ListItemText
+                        primary={
+                          <Typography variant="body2" fontWeight={600} color="#FFF" noWrap>
+                            {ref.referred?.full_name || t('invite_new_player')}
+                          </Typography>
+                        }
+                        secondary={
+                          <Typography variant="caption" color="text.secondary">
+                            {new Date(ref.created_at).toLocaleDateString()}
+                          </Typography>
+                        }
+                      />
+
+                      <Chip icon={status.icon} label={status.label} color={status.color} size="small" variant="outlined" sx={{ height: 22 }} />
+                    </ListItem>
+                  </motion.div>
+                );
+              })}
+            </List>
+          ) : (
+            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#444' }}>
+              <PersonAdd sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="caption" sx={{ textAlign: 'center' }}>
+                {t('invite_no_referrals')}
+              </Typography>
+            </Box>
+          )}
+        </Box>
+      ),
+    },
+    {
+      content: (
+        <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '100%' }}>
+          <div>
+            <div className="magic-bento-card__header">
+              <div className="magic-bento-card__label">{t('invite_vip_access')}</div>
+            </div>
+            <Box className="magic-bento-card__content">
+              <GradientText>{t('invite_link_title')}</GradientText>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: -1 }}>
+                {t('invite_share_to_earn')}
+              </Typography>
+            </Box>
+          </div>
+
+          <Box mt={2}>
+            <TextField
+              fullWidth
+              value={inviteLink}
+              variant="outlined"
+              size="small"
+              InputProps={{
+                readOnly: true,
+                sx: {
+                  bgcolor: 'rgba(0,0,0,0.4)',
+                  color: '#D4AF37',
+                  fontFamily: 'monospace',
+                  fontWeight: 700,
+                  borderRadius: 2,
+                  pr: 0,
+                },
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <Button
+                      onClick={handleCopy}
+                      variant="contained"
+                      sx={{
+                        bgcolor: copied ? '#4CAF50' : '#D4AF37',
+                        color: '#000',
+                        fontWeight: 800,
+                        height: 40,
+                        borderRadius: '0 8px 8px 0',
+                        boxShadow: 'none',
+                      }}
+                    >
+                      {copied ? t('copied') : t('copy')}
+                    </Button>
+                  </InputAdornment>
+                ),
+              }}
+            />
+
+            <Box display="flex" gap={1} mt={1.5}>
+              <Button
+                fullWidth
+                size="small"
+                startIcon={<WhatsApp />}
+                variant="contained"
+                sx={{ bgcolor: '#25D366' }}
+                onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(shareData.text + ' ' + shareData.url)}`)}
+              >
+                WhatsApp
+              </Button>
+
+              <Button
+                fullWidth
+                size="small"
+                startIcon={<Telegram />}
+                variant="contained"
+                sx={{ bgcolor: '#229ED9' }}
+                onClick={() => window.open(`https://t.me/share/url?url=${encodeURIComponent(shareData.url)}&text=${encodeURIComponent(shareData.text)}`)}
+              >
+                Telegram
+              </Button>
+            </Box>
+          </Box>
+        </Box>
+      ),
+    },
+    {
+      label: t('invite_total_earnings'),
+      content: (
+        <>
+          <div className="magic-bento-card__header">
+            <div className="magic-bento-card__label">{t('invite_total_earnings')}</div>
+          </div>
+
+          <Box className="magic-bento-card__content">
+            <GradientText>{t('invite_your_achievements')}</GradientText>
+          </Box>
+
+          <Box display="flex" justifyContent="space-around" textAlign="center">
+            <Box>
+              <Typography variant="h5" fontWeight={700} display="flex" alignItems="center" justifyContent="center" gap={0.5}>
+                <Bolt sx={{ color: '#D4AF37' }} /> {inviteEarnings}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">{t('spinsAvailable')}</Typography>
+            </Box>
+
+            <Box>
+              <Typography variant="h5" fontWeight={700} display="flex" alignItems="center" justifyContent="center" gap={0.5}>
+                <Diamond sx={{ color: '#D4AF37' }} /> {inviteCount * 75}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">{t('lux_coins')}</Typography>
+            </Box>
+
+            <Box>
+              <Typography variant="h5" fontWeight={700} display="flex" alignItems="center" justifyContent="center" gap={0.5}>
+                <Star sx={{ color: '#D4AF37' }} /> {inviteCount * 100}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">{t('xp_label')}</Typography>
+            </Box>
+          </Box>
+        </>
+      ),
+    },
+    {
+      label: t('invite_effectiveness'),
+      content: (
+        <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '100%' }}>
+          <div className="magic-bento-card__header">
+            <div className="magic-bento-card__label">{t('invite_effectiveness')}</div>
+          </div>
+          <Box>
+            <GradientText>{t('invite_confirmation_rate')}</GradientText>
+            <Typography variant="h4" fontWeight={900} color="white">{conversionRate}%</Typography>
+            <Typography variant="body2" color="text.secondary">{t('invite_of_invites')}</Typography>
+          </Box>
+        </Box>
+      ),
+    },
+  ];
 
   return (
     <Box>
-        <Paper sx={{ 
-            p: { xs: 2, md: 5 }, 
-            bgcolor: '#0F121D', 
-            border: '2px solid rgba(212, 175, 55, 0.2)',
-            borderRadius: 4, 
-            position: 'relative', 
-            overflow: 'hidden',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-            background: 'linear-gradient(135deg, #0F121D 0%, #1a1f2e 100%)'
-        }}>
-            <Box sx={{ position: 'absolute', top: -50, right: -50, width: 300, height: 300, background: 'radial-gradient(circle, rgba(212, 175, 55, 0.15) 0%, transparent 70%)', filter: 'blur(60px)', animation: 'pulse 4s ease-in-out infinite' }} />
-            
-            <Box position="relative" zIndex={1}>
-                <Box display="flex" alignItems="center" justifyContent="space-between" mb={4} flexDirection={{ xs: 'column', sm: 'row' }} gap={2}>
-                    <Box display="flex" alignItems="center" gap={2} width="100%">
-                        <Box sx={{ width: { xs: 48, md: 60 }, height: { xs: 48, md: 60 }, borderRadius: 3, bgcolor: 'rgba(212, 175, 55, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid rgba(212, 175, 55, 0.3)', flexShrink: 0 }}>
-                            <Groups sx={{ color: '#D4AF37', fontSize: { xs: 24, md: 36 } }} />
-                        </Box>
-                        <Box>
-                            <Typography variant="overline" sx={{ color: '#D4AF37', letterSpacing: 2, fontSize: { xs: '0.6rem', md: '0.7rem' }, fontWeight: 700 }}>
-                                {t('invite_program_vip')}
-                            </Typography>
-                            <Typography variant="h4" sx={{ fontFamily: 'Montserrat', fontWeight: 900, color: '#FFF', lineHeight: 1, fontSize: { xs: '1.5rem', md: '2.1rem' } }}>
-                                {t('invite_premium')}
-                            </Typography>
-                        </Box>
-                    </Box>
-                    <Chip icon={<EmojiEvents sx={{ color: '#D4AF37 !important' }} />} label={t('invite_active')} sx={{ bgcolor: 'rgba(212, 175, 55, 0.2)', color: '#D4AF37', fontWeight: 800, border: '1px solid rgba(212, 175, 55, 0.4)', fontSize: '0.75rem', alignSelf: { xs: 'flex-start', sm: 'center' } }} />
-                </Box>
+      <Typography variant="h4" color="#D4AF37" fontWeight={800} sx={{ mb: 1 }}>
+        {t('invite_program_vip')}
+      </Typography>
 
-                <Typography variant="body1" color="text.secondary" sx={{ mb: 4, fontSize: { xs: '0.9rem', md: '1rem' }, lineHeight: 1.7 }}>
-                     {t('invite_desc', { bonus: t('invite_bonus_highlight') })}
-                </Typography>
+      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
+        {t('invite_desc', { bonus: t('invite_bonus_highlight') })}
+      </Typography>
 
-                <Grid container spacing={2} mb={5}>
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                        <Paper sx={{ p: 2, bgcolor: 'rgba(212, 175, 55, 0.08)', border: '1px solid rgba(212, 175, 55, 0.2)', borderRadius: 3, textAlign: 'center' }}>
-                            <Typography variant="h4" color="#D4AF37" fontWeight={900} mb={0.5} fontSize={{ xs: '1.5rem', md: '2rem' }}>{inviteCount}</Typography>
-                            <Typography variant="caption" color="text.secondary" textTransform="uppercase" fontWeight={600} letterSpacing={1}>{t('invite_stats_friends')}</Typography>
-                        </Paper>
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                        <Paper sx={{ p: 2, bgcolor: 'rgba(76, 175, 80, 0.08)', border: '1px solid rgba(76, 175, 80, 0.2)', borderRadius: 3, textAlign: 'center' }}>
-                            <Typography variant="h4" color="#4CAF50" fontWeight={900} mb={0.5} fontSize={{ xs: '1.5rem', md: '2rem' }}>+{inviteEarnings}</Typography>
-                            <Typography variant="caption" color="text.secondary" textTransform="uppercase" fontWeight={600} letterSpacing={1}>{t('invite_stats_spins')}</Typography>
-                        </Paper>
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                        <Paper sx={{ p: 2, bgcolor: 'rgba(33, 150, 243, 0.08)', border: '1px solid rgba(33, 150, 243, 0.2)', borderRadius: 3, textAlign: 'center' }}>
-                            <Typography variant="h4" color="#2196F3" fontWeight={900} mb={0.5} fontSize={{ xs: '1.5rem', md: '2rem' }}>{inviteCount > 0 ? '100' : '0'}%</Typography>
-                            <Typography variant="caption" color="text.secondary" textTransform="uppercase" fontWeight={600} letterSpacing={1}>{t('invite_stats_rate')}</Typography>
-                        </Paper>
-                    </Grid>
-                </Grid>
+      <Box display="flex" justifyContent="center">
+        <MagicBento
+          cards={cards}
+          textAutoHide
+          enableStars
+          enableSpotlight
+          enableBorderGlow
+          enableTilt={false}
+          enableMagnetism={false}
+          clickEffect
+          spotlightRadius={400}
+          particleCount={12}
+          glowColor="212, 175, 55"
+          disableAnimations={false}
+        />
+      </Box>
 
-                <Divider sx={{ my: 4, borderColor: 'rgba(255,255,255,0.1)' }} />
-
-                <Box mb={4}>
-                    <Typography variant="h6" color="#FFF" fontWeight={700} mb={2} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Share sx={{ color: '#D4AF37' }} /> {t('invite_link_title')}
-                    </Typography>
-                    <TextField 
-                        fullWidth value={inviteLink} variant="outlined"
-                        InputProps={{
-                            readOnly: true,
-                            sx: { bgcolor: 'rgba(0,0,0,0.4)', color: '#D4AF37', fontFamily: 'monospace', fontWeight: 700, fontSize: { xs: '0.8rem', md: '1rem' }, borderRadius: 3, border: '1px solid rgba(212, 175, 55, 0.3)', '& input': { textAlign: 'center', textOverflow: 'ellipsis' }, paddingRight: 0 },
-                            endAdornment: (
-                                <InputAdornment position="end">
-                                    <Button onClick={handleCopy} variant="contained" sx={{ bgcolor: copied ? '#4CAF50' : '#D4AF37', color: '#000', fontWeight: 800, height: 56, borderRadius: '0 12px 12px 0', boxShadow: 'none', minWidth: { xs: 80, md: 100 }, fontSize: { xs: '0.7rem', md: '0.875rem' }, '&:hover': { bgcolor: copied ? '#45a049' : '#F3E5AB' } }}>
-                                        {copied ? t('copied').toUpperCase() : t('copy').toUpperCase()}
-                                    </Button>
-                                </InputAdornment>
-                            )
-                        }}
-                    />
-                </Box>
-
-                <Box display="flex" gap={2} flexWrap="wrap" mb={5} flexDirection={{ xs: 'column', sm: 'row' }}>
-                    <Button startIcon={<WhatsApp />} variant="contained" size="large" sx={{ bgcolor: '#25D366', color: '#FFF', fontWeight: 700, py: 1.5, borderRadius: 2, textTransform: 'none', fontSize: '1rem', flexGrow: 1, width: { xs: '100%', sm: 'auto' }, '&:hover': { bgcolor: '#20BA5A' } }} onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(shareData.text + ' ' + shareData.url)}`)}>WhatsApp</Button>
-                    <Button startIcon={<Telegram />} variant="contained" size="large" sx={{ bgcolor: '#229ED9', color: '#FFF', fontWeight: 700, py: 1.5, borderRadius: 2, textTransform: 'none', fontSize: '1rem', flexGrow: 1, width: { xs: '100%', sm: 'auto' }, '&:hover': { bgcolor: '#1A8CC4' } }} onClick={() => window.open(`https://t.me/share/url?url=${encodeURIComponent(shareData.url)}&text=${encodeURIComponent(shareData.text)}`)}>Telegram</Button>
-                </Box>
-
-                {referrals.length > 0 && (
-                    <Box mt={4}>
-                         <Typography variant="h6" color="#FFF" fontWeight={700} mb={3} display="flex" alignItems="center" gap={1}>
-                             <Person sx={{ color: '#D4AF37' }} /> {t('invite_recent_list')}
-                         </Typography>
-                         <List sx={{ bgcolor: 'rgba(255,255,255,0.02)', borderRadius: 3, border: '1px solid rgba(255,255,255,0.05)' }}>
-                             {referrals.map((ref) => {
-                                 const isPaid = ref.reward_paid || false;
-                                 const isRegistered = !!ref.referred; 
-                                 return (
-                                     <React.Fragment key={ref.id}>
-                                         <ListItem alignItems="center">
-                                             <ListItemAvatar>
-                                                 <Avatar sx={{ bgcolor: isPaid ? '#4CAF50' : 'rgba(212, 175, 55, 0.2)', color: isPaid ? '#FFF' : '#D4AF37' }}>{ref.referred?.full_name?.charAt(0) || 'U'}</Avatar>
-                                             </ListItemAvatar>
-                                             <ListItemText 
-                                                 primary={<Typography color="#FFF" fontWeight={600}>{ref.referred?.full_name || 'Usuário Lux'}</Typography>}
-                                                 secondary={<Typography variant="caption" color="text.secondary" display="flex" alignItems="center" gap={0.5}><AccessTime sx={{ fontSize: 12 }} /> {new Date(ref.created_at).toLocaleDateString()}</Typography>}
-                                             />
-                                             <Chip icon={isPaid ? <CheckCircle sx={{ fontSize: 16 }} /> : (isRegistered ? <HowToReg sx={{ fontSize: 16 }} /> : <Pending sx={{ fontSize: 16 }} />)} label={isPaid ? t('status_rewarded') : (isRegistered ? t('status_registered') : t('status_pending_invite'))} size="small" sx={{ fontWeight: 800, ...(isPaid ? { bgcolor: '#4CAF50', color: '#000', '& .MuiChip-icon': { color: '#000' } } : isRegistered ? { background: 'linear-gradient(45deg, rgba(33, 150, 243, 0.1), rgba(33, 150, 243, 0.2))', color: '#2196F3', border: '1px solid rgba(33, 150, 243, 0.3)', '& .MuiChip-icon': { color: '#2196F3' } } : { background: 'rgba(255,255,255,0.05)', color: '#888', border: '1px solid rgba(255,255,255,0.1)', '& .MuiChip-icon': { color: '#888' } }) }} />
-                                         </ListItem>
-                                         <Divider sx={{ borderColor: 'rgba(255,255,255,0.05)' }} component="li" />
-                                     </React.Fragment>
-                                 );
-                             })}
-                         </List>
-                    </Box>
-                )}
-            </Box>
-        </Paper>
-        <Snackbar open={notification.open} autoHideDuration={3000} onClose={() => setNotification({...notification, open: false})} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-            <Alert severity="success" icon={<CheckCircle />} sx={{ bgcolor: '#4CAF50', color: '#FFF', fontWeight: 800, boxShadow: '0 8px 24px rgba(76, 175, 80, 0.4)', '& .MuiAlert-icon': { color: '#FFF' } }}>{notification.message}</Alert>
-        </Snackbar>
+      <Snackbar
+        open={copied}
+        autoHideDuration={2000}
+        onClose={() => setCopied(false)}
+        message={t('copied')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
     </Box>
   );
 };

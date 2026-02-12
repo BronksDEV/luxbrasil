@@ -14,6 +14,7 @@ export interface UserProfile {
   created_at?: string;
   // New fields
   avatar_url?: string;
+  avatar_id?: string; // Novo campo para seleção de avatar da biblioteca
   invite_code?: string;
   invite_count?: number;
   invite_earnings?: number; // Agora representa Giros ganhos por convite
@@ -84,33 +85,15 @@ export enum PageRoute {
   REGISTER = '/register',
   DASHBOARD = '/dashboard',
   MY_PRIZES = '/my-prizes',
-  CHALLENGES = '/challenges',
-  VAULT = '/vault', // Nova rota
+  CHALLENGES = '/challenges', // Mantido nome da rota, mas visualmente é Ranking
+  VAULT = '/vault',
   ADMIN = '/admin',
   LEGAL_PRIVACY = '/legal/privacy',
   LEGAL_TERMS = '/legal/terms',
   LEGAL_DATA = '/legal/data'
 }
 
-// NOVA INTERFACE ROBUSTA PARA O RPC sync_user_missions
-export interface Mission {
-  user_challenge_id: string;
-  challenge_id: string;
-  title: string;
-  description: string;
-  current_value: number;
-  goal: number;
-  status: 'active' | 'completed' | 'claimed';
-  reward_type: 'spins' | 'money' | 'xp' | 'both';
-  reward_spins: number;
-  reward_money: number;
-  reward_xp: number;
-  icon: string;
-  frequency: 'daily' | 'weekly' | 'monthly' | 'permanent';
-  category: string; // Agora Obrigatório e vindo do banco
-}
-
-// Mantendo interface antiga para compatibilidade se algo quebrar, mas deve ser depreciada
+// Interfaces legadas mantidas para compatibilidade se necessário, ou removidas se não usadas
 export interface Challenge {
   id: string;
   title: string;
@@ -131,22 +114,41 @@ export interface Challenge {
   current_value?: number;
 }
 
-export interface Referral {
+export interface DetailedReferral {
   id: string;
-  referred: {
-    full_name: string;
-    email: string;
-    created_at: string;
-  };
-  spun_roulette: boolean;
-  reward_paid: boolean;
   created_at: string;
+  reward_paid: boolean;
+  referred: {
+    full_name: string | null;
+    created_at: string | null;
+    // Assumimos que a confirmação é refletida pelo pagamento da recompensa
+  } | null;
 }
 
 export interface SystemThemeConfig {
   id?: string;
   active: boolean;
-  name: string; // 'carnival' | 'default' | 'custom'
-  custom_css?: string; // Para injeção de script/css
+  name: string;
+  maintenance_mode?: boolean;
+  custom_css?: string;
   custom_html_head?: string;
+}
+
+// NOVA INTERFACE PARA RANKING
+export interface RankingEntry {
+  rank: number;
+  user_id: string;
+  full_name: string;
+  avatar_seed?: string;
+  invites: number;
+  is_current_user: boolean;
+  trend?: 'up' | 'down' | 'same';
+  prize_tier?: string;
+}
+
+export interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  icon: string; // MUI icon name
 }

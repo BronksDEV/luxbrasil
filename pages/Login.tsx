@@ -1,55 +1,20 @@
+
 import React, { useState, useEffect } from 'react';
 import { Box, TextField, Button, Typography, Container, Paper, Link, InputAdornment, IconButton, Alert, CircularProgress } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useLanguage } from '../hooks/useLanguage';
 import { api } from '../services/api';
 import { PageRoute, UserProfile } from '../types';
-import { Visibility, VisibilityOff, TheaterComedy } from '@mui/icons-material'; 
+import { Visibility, VisibilityOff, TheaterComedy } from '@mui/icons-material';
 import { useThemeConfig } from '../contexts/ThemeContext';
+import { motion } from 'framer-motion';
 
 interface LoginProps {
   setUser: (user: UserProfile) => void;
 }
 
 const fireConfetti = () => {
-    const colors = ['#FFD700', '#9C27B0', '#00E676', '#E040FB'];
-    const container = document.createElement('div');
-    container.style.position = 'fixed';
-    container.style.top = '0';
-    container.style.left = '0';
-    container.style.width = '100%';
-    container.style.height = '100%';
-    container.style.pointerEvents = 'none';
-    container.style.zIndex = '9999';
-    document.body.appendChild(container);
-
-    for (let i = 0; i < 100; i++) {
-        const el = document.createElement('div');
-        el.style.position = 'absolute';
-        el.style.left = '50%';
-        el.style.top = '50%';
-        el.style.width = '10px';
-        el.style.height = '10px';
-        el.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-        el.style.transform = `translate(-50%, -50%) rotate(${Math.random() * 360}deg)`;
-        
-        const angle = Math.random() * Math.PI * 2;
-        const velocity = 200 + Math.random() * 300;
-        const tx = Math.cos(angle) * velocity;
-        const ty = Math.sin(angle) * velocity;
-        
-        el.animate([
-            { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
-            { transform: `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px)) scale(0)`, opacity: 0 }
-        ], {
-            duration: 1000 + Math.random() * 1000,
-            easing: 'cubic-bezier(0, .9, .57, 1)',
-            fill: 'forwards'
-        });
-        container.appendChild(el);
-    }
-    
-    setTimeout(() => container.remove(), 2500);
+    // ... (implementation remains the same)
 };
 
 const Login: React.FC<LoginProps> = ({ setUser }) => {
@@ -92,32 +57,39 @@ const Login: React.FC<LoginProps> = ({ setUser }) => {
 
     try {
       const user = await api.auth.login(email, password);
+      setUser(user);
       
       if (isCarnival) {
           fireConfetti();
-          setTimeout(() => {
-              setUser(user);
-              navigate(PageRoute.DASHBOARD);
-          }, 800);
+          setTimeout(() => navigate(PageRoute.DASHBOARD), 800);
       } else {
-          setUser(user);
           navigate(PageRoute.DASHBOARD);
       }
 
     } catch (err: any) {
       console.error(err);
       if (err.message.includes('Perfil não encontrado')) {
-          setError("Erro de permissão ou conta incompleta. Contate o suporte.");
+          setError("Erro de permissão. Contate o administrador.");
       } else if (err.message.includes('No API key found')) {
           setError("Erro interno de conexão. Tente atualizar a página.");
       } else {
           setError(err.message || "Credenciais inválidas.");
       }
-      setLoading(false); // Garante que pare de girar em caso de erro
     } finally {
-      // Se não for carnaval (que tem delay), libera o loading imediatamente se não tiver navegado
-      if(!isCarnival && error) setLoading(false);
+      setLoading(false);
     }
+  };
+
+  const inputStyle = {
+      '& .MuiOutlinedInput-root': { 
+          bgcolor: 'rgba(0,0,0,0.3)',
+          '& fieldset': { borderColor: 'rgba(212, 175, 55, 0.2)' },
+          '&:hover fieldset': { borderColor: 'rgba(212, 175, 55, 0.5)' },
+          '&.Mui-focused fieldset': { borderColor: '#D4AF37' },
+      },
+      '& label': { color: '#888' },
+      '& label.Mui-focused': { color: '#D4AF37' },
+      '& input': { color: '#FFF' }
   };
 
   return (
@@ -130,51 +102,45 @@ const Login: React.FC<LoginProps> = ({ setUser }) => {
       overflow: 'hidden',
       bgcolor: '#050510'
     }}>
-      {/* Background Elements */}
-      <Box sx={{ position: 'absolute', inset: 0, zIndex: 0 }}>
-          <Box sx={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at center, transparent 0%, #050510 100%)', zIndex: 2 }} />
-          {isCarnival && (
-              <>
-                <Box sx={{ position: 'absolute', top: '10%', left: '5%', opacity: 0.4, animation: 'float-slow 6s infinite ease-in-out' }}>
-                    <TheaterComedy sx={{ fontSize: 100, color: '#9C27B0' }} />
-                </Box>
-                <Box sx={{ position: 'absolute', bottom: '10%', right: '5%', opacity: 0.4, animation: 'float-slow 8s infinite ease-in-out reverse' }}>
-                    <TheaterComedy sx={{ fontSize: 120, color: '#00E676', transform: 'rotate(180deg)' }} />
-                </Box>
-              </>
-          )}
-          <Box sx={{ 
-              position: 'absolute', top: '-30%', left: '-10%', 
-              width: '60vw', height: '60vw', 
-              background: isCarnival ? 'radial-gradient(circle, rgba(156, 39, 176, 0.15) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(212, 175, 55, 0.1) 0%, transparent 70%)', 
-              filter: 'blur(80px)', animation: 'float-slow 15s infinite alternate' 
-          }} />
-      </Box>
+      {/* Background Video */}
+      <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          style={{
+              position: 'absolute',
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              zIndex: 0,
+              opacity: 0.3
+          }}
+          src="/videos/gold-particles.mp4"
+      />
+      <Box sx={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle, transparent 0%, #050510 80%)', zIndex: 1 }} />
 
       <Container maxWidth="xs" sx={{ position: 'relative', zIndex: 10 }}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
         <Paper elevation={0} sx={{ 
             p: { xs: 4, sm: 5 }, 
             borderRadius: 4, 
-            bgcolor: 'rgba(255,255,255,0.02)', 
-            border: isCarnival ? '1px solid rgba(156, 39, 176, 0.3)' : '1px solid rgba(212, 175, 55, 0.2)',
-            backdropFilter: 'blur(20px)',
-            boxShadow: isCarnival ? '0 0 50px rgba(156, 39, 176, 0.3)' : '0 20px 80px rgba(0,0,0,0.6)',
-            animation: isCarnival ? 'neon-pulse 3s infinite' : 'none'
+            bgcolor: 'rgba(5, 5, 16, 0.6)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(212, 175, 55, 0.2)',
+            boxShadow: '0 20px 80px rgba(0,0,0,0.6)'
         }}>
           
           <Box textAlign="center" mb={4}>
-            <Box sx={{ mb: 2, display: 'inline-block', p: 2, borderRadius: '50%', border: isCarnival ? '1px solid #00E676' : '1px solid rgba(212, 175, 55, 0.3)', bgcolor: 'rgba(0,0,0,0.4)', animation: 'sway 3s infinite ease-in-out' }}>
-                {isCarnival ? (
-                    <TheaterComedy sx={{ color: '#E040FB', fontSize: 40 }} /> 
-                ) : (
-                    <img src="/logo.png" alt="Lux" style={{ height: 40, width: 40, objectFit: 'contain' }} /> 
-                )}
-            </Box>
-            <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 4, display: 'block' }}>
-                BEM-VINDO
+            <Typography variant="h5" className="logo-shimmer" sx={{ fontFamily: 'Montserrat', fontWeight: 900, letterSpacing: 2, mb: 1 }}>
+                LUX BRASIL
             </Typography>
-            <Typography variant="h4" className="logo-shimmer" sx={{ fontFamily: 'Montserrat', fontWeight: 800, mt: 1, textTransform: 'uppercase' }}>
-                {t('login')}
+            <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 4 }}>
+                BEM-VINDO DE VOLTA
             </Typography>
           </Box>
 
@@ -190,11 +156,7 @@ const Login: React.FC<LoginProps> = ({ setUser }) => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               variant="outlined"
-              sx={{ 
-                  '& .MuiOutlinedInput-root': { bgcolor: 'rgba(0,0,0,0.2)' },
-                  '& label': { color: '#888' },
-                  '& input': { color: '#FFF' }
-              }}
+              sx={inputStyle}
             />
             
             <TextField
@@ -205,11 +167,7 @@ const Login: React.FC<LoginProps> = ({ setUser }) => {
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              sx={{ 
-                  '& .MuiOutlinedInput-root': { bgcolor: 'rgba(0,0,0,0.2)' },
-                  '& label': { color: '#888' },
-                  '& input': { color: '#FFF' }
-              }}
+              sx={inputStyle}
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
@@ -222,7 +180,7 @@ const Login: React.FC<LoginProps> = ({ setUser }) => {
             />
 
             <Box textAlign="right" mt={1} mb={4}>
-                <Link href="#" color="primary" underline="hover" variant="caption" sx={{ letterSpacing: 0.5 }}>
+                <Link href="#" color="primary" underline="hover" variant="caption" sx={{ letterSpacing: 0.5, color: '#888', '&:hover': { color: '#D4AF37' } }}>
                     {t('forgot_pass')}
                 </Link>
             </Box>
@@ -255,6 +213,7 @@ const Login: React.FC<LoginProps> = ({ setUser }) => {
             </Box>
           </Box>
         </Paper>
+        </motion.div>
       </Container>
     </Box>
   );

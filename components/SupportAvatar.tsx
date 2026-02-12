@@ -3,12 +3,14 @@ import React, { useState } from 'react';
 import { Box, Typography, Paper, Fade, useTheme, useMediaQuery, IconButton, Tooltip } from '@mui/material';
 import { WhatsApp, Telegram } from '@mui/icons-material';
 import { useThemeConfig } from '../contexts/ThemeContext';
+import { useLanguage } from '../hooks/useLanguage';
 
 const SupportAvatar: React.FC = () => {
   const [isHovered, setIsHovered] = useState(false);
   const { themeConfig } = useThemeConfig();
   const theme = useTheme() as any;
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const { t } = useLanguage();
 
   const isCarnival = themeConfig.active && themeConfig.name === 'carnival';
 
@@ -141,12 +143,10 @@ const SupportAvatar: React.FC = () => {
               alignSelf: 'center'
             }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#AA8C2C', mb: 0.5 }}>
-                Suporte Lux
+                {t('support_title')}
               </Typography>
               <Typography variant="body2" sx={{ fontSize: '0.85rem', lineHeight: 1.3, fontWeight: 500 }}>
-                Olá! Sou a Ana. 
-                <br/>
-                <span style={{ color: '#555', fontSize: '0.75rem' }}>Clique para atendimento.</span>
+                {t('support_greeting')}
               </Typography>
             </Paper>
           } />
@@ -167,7 +167,7 @@ const SupportAvatar: React.FC = () => {
                 <FloatingButton
                   icon={<WhatsApp sx={{ fontSize: { xs: 18, md: 20 } }} />}
                   color="#25D366"
-                  tooltip="Benefícios Diários 🎁"
+                  tooltip={t('support_tooltip_benefits')}
                   link={WHATSAPP_BENEFITS}
                   index={0}
                 />
@@ -175,7 +175,7 @@ const SupportAvatar: React.FC = () => {
                 <FloatingButton
                   icon={<Telegram sx={{ fontSize: { xs: 18, md: 20 } }} />}
                   color="#229ED9"
-                  tooltip="Grupo VIP Telegram 💎"
+                  tooltip={t('support_tooltip_vip')}
                   link={TELEGRAM_VIP}
                   index={1}
                 />
@@ -183,7 +183,7 @@ const SupportAvatar: React.FC = () => {
                 <FloatingButton
                   icon={<WhatsApp sx={{ fontSize: { xs: 18, md: 20 } }} />}
                   color="#FF6B35"
-                  tooltip="Ação Beneficente ❤️"
+                  tooltip={t('support_tooltip_charity')}
                   link={WHATSAPP_CHARITY}
                   index={2}
                 />
@@ -254,7 +254,7 @@ const SupportAvatar: React.FC = () => {
             <FloatingButton
               icon={<WhatsApp sx={{ fontSize: 18 }} />}
               color="#25D366"
-              tooltip="Benefícios"
+              tooltip={t('support_tooltip_benefits_short')}
               link={WHATSAPP_BENEFITS}
               index={0}
             />
@@ -262,7 +262,7 @@ const SupportAvatar: React.FC = () => {
             <FloatingButton
               icon={<Telegram sx={{ fontSize: 18 }} />}
               color="#229ED9"
-              tooltip="VIP"
+              tooltip={t('support_tooltip_vip_short')}
               link={TELEGRAM_VIP}
               index={1}
             />
@@ -270,7 +270,7 @@ const SupportAvatar: React.FC = () => {
             <FloatingButton
               icon={<WhatsApp sx={{ fontSize: 18 }} />}
               color="#FF6B35"
-              tooltip="Beneficente"
+              tooltip={t('support_tooltip_charity_short')}
               link={WHATSAPP_CHARITY}
               index={2}
             />

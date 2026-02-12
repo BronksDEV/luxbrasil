@@ -123,9 +123,10 @@ const MyPrizes: React.FC = () => {
             setLoading(true);
             
             // Executa em paralelo para performance e garantia de execução
+            // 'visit_wallet' com forceIncrement=true garante que a visita seja contabilizada
             const [histData, completedChallenges] = await Promise.all([
                 api.game.getHistory(user?.id).catch(e => { console.error(e); return []; }),
-                api.challenges.checkAction('visit_wallet').catch(e => { console.error("Erro desafio", e); return []; })
+                api.challenges.checkAction('visit_wallet', true).catch(e => { console.error("Erro desafio", e); return []; })
             ]);
 
             // Filtra apenas prêmios reais

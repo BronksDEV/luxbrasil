@@ -1,5 +1,7 @@
+
 import { createClient } from '@supabase/supabase-js';
-import { Prize, SpinResult, UserProfile, WinnerLog, Challenge, Referral, AdminRedemptionRequest, SystemThemeConfig, Mission } from '../types';
+// FIX: Removed 'Referral' from import as it does not exist in types.ts and was unused.
+import { Prize, SpinResult, UserProfile, WinnerLog, Challenge, AdminRedemptionRequest, SystemThemeConfig, RankingEntry } from '../types';
 
 const SUPABASE_URL = 'https://isrkqhpbfppifhfkrzbv.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlzcmtxaHBiZnBwaWZoZmtyemJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4ODQ4NDAsImV4cCI6MjA4MjQ2MDg0MH0.F6BIoSMdNFtOjvDGstEImN_v0DYHkolcAWOo1idyaLM';
@@ -17,7 +19,6 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   }
 });
 
-// Helper functions
 const validateCPFStructure = (cpf: string): boolean => {
     cpf = cpf.replace(/[^\d]+/g, '');
     if (cpf.length !== 11 || /^(\d)\1+$/.test(cpf)) return false;
@@ -36,7 +37,7 @@ const validateCPFStructure = (cpf: string): boolean => {
 
 const validatePhone = (phone: string): boolean => {
     const clean = phone.replace(/\D/g, '');
-    return clean.length >= 10 && clean.length <= 11;
+    return /^\d{11}$/.test(clean);
 };
 
 const getPublicIP = async (): Promise<string> => {
@@ -46,6 +47,24 @@ const getPublicIP = async (): Promise<string> => {
         return data.ip;
     } catch (e) {
         return '0.0.0.0'; 
+    }
+};
+
+const distributeRewards = async (userId: string, challenge: Challenge | any) => {
+    const rSpins = Number(challenge.reward_spins || 0);
+    const rMoney = Number(challenge.reward_money || 0);
+    const rXp = Number(challenge.reward_xp || 0);
+    
+    const { error } = await supabase.rpc('distribute_challenge_reward', {
+        target_user_id: userId,
+        r_spins: rSpins,
+        r_money: rMoney,
+        r_xp: rXp
+    });
+
+    if (error) {
+        console.error("Erro ao distribuir recompensas via RPC:", error);
+        throw error;
     }
 };
 
@@ -65,99 +84,93 @@ export const api = {
       }
       
       if (!data.user) throw new Error("Usuário não encontrado.");
-
-      // CRÍTICO: Processa login diário E verifica missão de login
-      try {
-        await api.auth.processDailyLogin();
-        // Força verificação da ação de login para missões
-        await api.challenges.checkAction('login');
-      } catch (e) {
-        console.warn('Erro ao processar login diário:', e);
-      }
-
+      
       return api.auth.getCurrentUser();
     },
     
     register: async (userData: any): Promise<UserProfile> => {
-      if (userData.honeypot && userData.honeypot.length > 0) {
-          await new Promise(r => setTimeout(r, 1500));
-          throw new Error("Erro de processamento automático."); 
-      }
-      
-      const cleanCpf = userData.cpf ? userData.cpf.replace(/\D/g, '') : '';
-      const cleanPhone = userData.phone ? userData.phone.replace(/\D/g, '') : '';
-      const cleanInvite = userData.inviteCode && userData.inviteCode.trim() !== '' 
-        ? userData.inviteCode.trim().toUpperCase()
-        : null;
-
-      if (!validateCPFStructure(cleanCpf)) {
-          throw new Error("O CPF informado é inválido.");
-      }
-
-      if (!validatePhone(cleanPhone)) {
-          throw new Error("O telefone é inválido.");
-      }
-
-      try {
-          const { data: checkData } = await supabase.rpc('check_registration_data', {
-              p_email: userData.email,
-              p_cpf: cleanCpf,
-              p_phone: cleanPhone
-          });
-          if (checkData && checkData.available === false) {
-              throw new Error(checkData.message);
-          }
-      } catch (e: any) {
-          if (e.message && e.message !== 'check_registration_data not found') console.warn("Reg check warning:", e);
-      }
-
-      const userIp = await getPublicIP();
-
-      const { data, error } = await supabase.auth.signUp({
-        email: userData.email,
-        password: userData.password,
-        options: {
-          data: {
-            full_name: userData.full_name,
-            cpf: cleanCpf, 
-            phone: cleanPhone,
-            invite_code: cleanInvite,
-            ip_address: userIp
-          },
-          emailRedirectTo: `https://roletalux.com.br/#/login`
+        if (userData.honeypot && userData.honeypot.length > 0) {
+            await new Promise(r => setTimeout(r, 1500));
+            throw new Error("SPAM_DETECTED"); 
         }
-      });
 
-      if (error) {
-          if (error.message.includes('already registered') || error.message.includes('unique')) {
-              throw new Error("Este e-mail ou CPF já está cadastrado.");
-          }
-          throw new Error(error.message);
-      }
-      
-      if (data.user && !data.session) {
-          throw new Error("CONFIRM_EMAIL");
-      }
-      
-      if (data.session) {
-          await new Promise(r => setTimeout(r, 1000));
-          // Processa login diário e missões (server-side)
-          try {
-            await api.auth.processDailyLogin();
-            await api.challenges.checkAction('login');
-          } catch (e) {
-            console.warn('Erro ao processar registro:', e);
-          }
-          return api.auth.getCurrentUser();
-      }
+        const cleanCpf = userData.cpf ? userData.cpf.replace(/\D/g, '') : '';
+        const cleanPhone = userData.phone ? userData.phone.replace(/\D/g, '') : '';
+        const cleanInvite = userData.inviteCode && userData.inviteCode.trim() !== '' 
+          ? userData.inviteCode.trim().toUpperCase()
+          : null;
 
-      throw new Error("Erro desconhecido no registro.");
+        if (!validateCPFStructure(cleanCpf)) {
+            throw new Error("O CPF informado é inválido.");
+        }
+        if (!validatePhone(cleanPhone)) {
+            throw new Error("O telefone deve ter 11 dígitos (DDD + 9 dígitos).");
+        }
+        
+        const ip = await getPublicIP();
+        if (ip === '0.0.0.0') {
+            throw new Error('IP_MISSING');
+        }
+
+        // 1. Pre-validation with RPC
+        const { data: validation, error: validationError } = await supabase.rpc('check_registration_data', {
+            p_email: userData.email,
+            p_cpf: cleanCpf,
+            p_phone: cleanPhone,
+            p_ip: ip
+        });
+
+        if (validationError) {
+            console.error("Erro ao verificar dados:", validationError);
+            throw new Error("err_check_data");
+        }
+
+        if (!validation.available) {
+            throw new Error(validation.reason || "err_duplicate_data");
+        }
+
+        // 2. Use standard Supabase Auth signUp
+        const { data, error } = await supabase.auth.signUp({
+            email: userData.email,
+            password: userData.password,
+            options: {
+                data: {
+                    full_name: userData.full_name,
+                    cpf: cleanCpf,
+                    phone: cleanPhone,
+                    invite_code_used: cleanInvite,
+                    device_id: userData.deviceId,
+                    ip_address: ip
+                }
+            }
+        });
+
+        if (error) {
+            console.error('Sign Up Error:', error);
+            if (error.message.includes('User already registered')) {
+                throw new Error("err_email_exists");
+            }
+            throw new Error(error.message);
+        }
+
+        if (data.user && !data.session) {
+            throw new Error("CONFIRM_EMAIL");
+        }
+
+        if (data.session) {
+            await new Promise(r => setTimeout(r, 1000));
+            return api.auth.getCurrentUser();
+        }
+
+        throw new Error("err_signup_failed");
     },
 
     getCurrentUser: async (): Promise<UserProfile> => {
-       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-       const user = session?.user;
-       if (sessionError || !user) throw new Error("Sem sessão ativa.");
+       const { data: { user }, error: userError } = await supabase.auth.getUser();
+       if (userError || !user) throw new Error("Sem sessão ativa.");
+       
+       try { await supabase.rpc('ensure_profile'); } catch (e) { /* O erro é esperado se o e-mail não estiver confirmado, não quebra o fluxo */ }
+       try { await supabase.rpc('process_daily_login'); } catch (_) {}
 
        let { data: profile } = await supabase
          .from('profiles')
@@ -167,18 +180,24 @@ export const api = {
        
        if (!profile) {
            await new Promise(r => setTimeout(r, 1500));
-           const retry = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+           const retry = await supabase
+             .from('profiles')
+             .select('*')
+             .eq('id', user.id)
+             .maybeSingle();
            profile = retry.data;
        }
 
-       if (!profile) throw new Error("Perfil não encontrado.");
+       if (!profile) {
+           throw new Error("Perfil não encontrado.");
+       }
        
        return {
          ...profile,
          id: user.id,
          email: user.email!,
          is_admin: profile.role === 'admin',
-         available_spins: (profile.spins_remaining !== undefined) ? profile.spins_remaining : 0,
+         available_spins: (profile.spins_remaining !== undefined && profile.spins_remaining !== null) ? profile.spins_remaining : 0,
          lux_coins: profile.wallet_balance || 0, 
          wallet_balance: profile.wallet_balance || 0,
          xp: profile.xp || 0,
@@ -188,200 +207,155 @@ export const api = {
          invite_count: profile.invite_count || 0,
          invite_earnings: profile.invite_earnings || 0,
          login_count: profile.login_count || 0,
-         last_login: profile.last_login
+         last_login: profile.last_login,
+         created_at: profile.created_at,
+         avatar_id: profile.avatar_id
        };
     },
     
-    logout: async () => {
-      await supabase.auth.signOut();
-    },
+    updateProfile: async (userId: string, updates: { full_name?: string, phone?: string, cpf?: string, avatar_id?: string }): Promise<void> => {
+        if (updates.cpf && !validateCPFStructure(updates.cpf)) throw new Error("CPF inválido");
+        if (updates.phone && !validatePhone(updates.phone)) throw new Error("Telefone inválido");
 
-    // FUNÇÃO CORRIGIDA: Agora retorna o resultado e permite verificação externa
-    processDailyLogin: async (): Promise<{ new_day: boolean; login_count: number } | null> => {
-      try {
+        const payload: any = {};
+        if (updates.full_name) payload.full_name = updates.full_name;
+        if (updates.phone) payload.phone = updates.phone;
+        if (updates.cpf) payload.cpf = updates.cpf;
+        if (updates.avatar_id) payload.avatar_id = updates.avatar_id;
+
+        const { error } = await supabase
+            .from('profiles')
+            .update(payload)
+            .eq('id', userId);
+            
+        if (error) {
+            if (error.message.includes('unique')) throw new Error("CPF ou Telefone já em uso.");
+            throw error;
+        }
+    },
+    
+    processDailyLogin: async (): Promise<{ new_day: boolean, login_count: number }> => {
         const { data, error } = await supabase.rpc('process_daily_login');
         if (error) {
-          console.error('Erro ao processar login diário:', error);
-          return null;
+            return { new_day: false, login_count: 0 };
         }
-        console.log('Login diário processado:', data);
         return data;
-      } catch (e) {
-        console.error('Erro ao processar login diário:', e);
-        return null;
-      }
     },
 
-    forgotPassword: async (email: string) => {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `https://roletalux.com.br/#/reset-password`
-      });
-      if (error) throw new Error(error.message);
-    },
-
-    resetPassword: async (newPassword: string) => {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw new Error(error.message);
-    },
-
-    updateProfile: async (userId: string, data: any) => {
-      const { error } = await supabase.from('profiles').update(data).eq('id', userId);
-      if (error) throw new Error(error.message);
-    }
+    logout: async () => { await supabase.auth.signOut(); }
   },
 
   prizes: {
     list: async (): Promise<Prize[]> => {
-      const { data, error } = await supabase
-        .from('prizes')
-        .select('*')
-        .eq('active', true);
-      
-      if (error) throw new Error(error.message);
+      const { data, error } = await supabase.from('prizes').select('*').order('probability', { ascending: true });
+      if (error) throw error;
       return data || [];
     },
-    create: async (prize: any) => {
-      const { data, error } = await supabase.from('prizes').insert(prize).select().single();
-      if (error) throw new Error(error.message);
-      return data;
+    update: async (prize: Prize): Promise<void> => {
+        const { error } = await supabase.from('prizes').update({ 
+            name: prize.name, probability: prize.probability, active: prize.active,
+            color: prize.color, value: prize.value, type: prize.type, 
+            image_url: prize.image_url, description: prize.description
+        }).eq('id', prize.id);
+        if (error) throw error;
+        await api.admin.logAction('UPDATE_PRIZE', prize.name, { probability: prize.probability, active: prize.active });
     },
-    update: async (prize: Prize) => {
-      const { error } = await supabase.from('prizes').update(prize).eq('id', prize.id);
-      if (error) throw new Error(error.message);
+    create: async (prize: Omit<Prize, 'id'>): Promise<void> => {
+        const { error } = await supabase.from('prizes').insert(prize);
+        if (error) throw error;
+        await api.admin.logAction('CREATE_PRIZE', prize.name, prize);
     },
-    delete: async (id: string) => {
-      const { error } = await supabase.from('prizes').delete().eq('id', id);
-      if (error) throw new Error(error.message);
+    delete: async (id: string): Promise<void> => {
+        const { error } = await supabase.from('prizes').delete().eq('id', id);
+        if (error) throw error;
+        await api.admin.logAction('DELETE_PRIZE', id, {});
     }
   },
 
   game: {
-    spin: async (userId?: string): Promise<SpinResult> => {
-      const { data, error } = await supabase
-        .rpc('play_spin');
+    spin: async (userId: string): Promise<SpinResult> => {
+      const { data, error } = await supabase.rpc('spin_roulette');
       
-      if (error) throw new Error(error.message);
-      return data;
-    },
-
-    getHistory: async (userId?: string): Promise<any[]> => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      const { data } = await supabase
-        .from('spin_history')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-      
-      return data || [];
-    },
-
-    requestRedemption: async (historyId: string) => {
-      const { data, error } = await supabase
-        .from('spin_history')
-        .update({ status: 'requested', redemption_requested_at: new Date().toISOString() })
-        .eq('id', historyId)
-        .select()
-        .single();
-      
-      if (error) throw new Error(error.message);
-      return data;
-    },
-
-    purchaseStoreItem: async (item: any) => {
-        return api.store.redeemItem(item);
-    }
-  },
-
-  winners: {
-    getRecent: async (): Promise<WinnerLog[]> => {
-      const { data } = await supabase
-        .from('spin_history')
-        .select(`
-          *,
-          profiles:user_id (full_name)
-        `)
-        .not('prize_name', 'eq', 'Tente novamente')
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      return (data || []).map((item: any) => ({
-        ...item,
-        user_name: item.profiles?.full_name || 'Anônimo'
-      }));
-    }
-  },
-
-  referrals: {
-    getList: async (): Promise<Referral[]> => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      // Pega os usuários convidados por este user
-      const { data: invited } = await supabase
-        .from('profiles')
-        .select('id, full_name, cpf, created_at')
-        .eq('invited_by', user.id);
-
-      const invitedList = invited || [];
-      const invitedIds = invitedList.map((p: any) => p.id).filter(Boolean);
-
-      // Descobre quem já girou pelo menos 1x (spun_roulette)
-      let spunSet = new Set<string>();
-      if (invitedIds.length > 0) {
-        const { data: spins } = await supabase
-          .from('spin_history')
-          .select('user_id')
-          .in('user_id', invitedIds);
-
-        for (const s of (spins || []) as any[]) {
-          if (s?.user_id) spunSet.add(s.user_id);
-        }
+      if (error) {
+          console.error("DB Error in Spin:", error);
+          if (error.message.includes('Saldo de giros insuficiente')) {
+              throw new Error("Sem giros disponíveis.");
+          }
+          throw new Error(`Erro ao processar giro: ${error.message || "Tente novamente."}`);
       }
+      
+      const realBalance = data.wallet_balance !== undefined ? data.wallet_balance : 0;
 
-      return invitedList.map((r: any) => {
-        const createdAt = r.created_at ?? null;
-
-        return {
-          // seus campos atuais
-          id: r.cpf ?? r.id,
-          name: r.full_name,
-          date: createdAt,
-          earnings: 0,
-
-          // campos que o type Referral exige (estavam faltando)
-          referred: r.id,                     // id do usuário indicado
-          spun_roulette: spunSet.has(r.id),   // true se já tem spin_history
-          reward_paid: false,                 // ajuste quando tiver regra real
-          created_at: createdAt               // mantém compatível com o type
-        } as Referral;
-      });
-    }
-  },
-
-  store: {
-    redeemItem: async (item: any) => {
+      return {
+          prize: data.prize, 
+          redemption_code: data.redemption_code,
+          remaining_spins: data.remaining_spins, 
+          wallet_balance: realBalance,
+          lux_coins: realBalance 
+      };
+    },
+    checkDaily: async (): Promise<boolean> => {
+        const { data, error } = await supabase.rpc('check_and_add_timer_spin');
+        if (error) return false;
+        return data?.spin_added || false;
+    },
+    getHistory: async (userId?: string): Promise<WinnerLog[]> => {
+      let query = supabase.from('spin_history').select('*').order('created_at', { ascending: false });
+      if (userId) {
+          query = query.eq('user_id', userId);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return data.map((item: any) => ({ ...item, timestamp: item.created_at }));
+    },
+    requestRedemption: async (id: string) => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("Usuário não autenticado");
-        
-        if (item.requiresAddress) {
-            // PARA RESGATE FÍSICO: GERAR APENAS A TABELA spin_history → admin pode usar delivery_address
-            // Lembre: pede item.deliveryAddress (nome, rua, cidade, estado, cep, phone)
+
+        const { data: existing, error: fetchError } = await supabase
+            .from('spin_history').select('*').eq('id', id).single();
+
+        if (fetchError || !existing) throw new Error("Prêmio não encontrado.");
+        if (existing.user_id !== user.id) throw new Error("Este prêmio não pertence a esta conta.");
+
+        if (['requested', 'redeemed', 'paid'].includes(existing.status)) {
+            return { ...existing, timestamp: existing.created_at };
+        }
+
+        const { data, error } = await supabase
+            .from('spin_history')
+            .update({ status: 'requested' })
+            .eq('id', id)
+            .eq('user_id', user.id)
+            .select(); 
+            
+        if (error) throw new Error(`Erro técnico ao solicitar: ${error.message}`);
+        if (!data || data.length === 0) throw new Error("Permissão negada.");
+
+        return { ...data[0], timestamp: data[0].created_at };
+    },
+    
+    purchaseStoreItem: async (item: { name: string, cost: number, type: 'physical' | 'spins' | 'money', id: string, moneyValue?: number }) => {
+        const { data: user } = await supabase.auth.getUser();
+        if (!user.user) throw new Error("Sessão inválida.");
+
+        const isSpinPurchase = item.type === 'spins';
+        const { data: rpcResult, error: rpcError } = await supabase.rpc('process_store_purchase', {
+            cost: item.cost,
+            is_spin_purchase: isSpinPurchase
+        });
+
+        if (rpcError) {
+            throw new Error("Erro ao processar compra no servidor.");
+        }
+
+        if (!rpcResult || rpcResult.success === false) {
+            throw new Error(rpcResult?.message || "Saldo insuficiente ou erro na transação.");
+        }
+
+        if (!isSpinPurchase) {
             await supabase.from('spin_history').insert({
-                user_id: user.id,
-                prize_name: item.name,
-                prize_type: item.type,
-                prize_value: item.moneyValue || 0,
-                status: 'requested',
-                redemption_code: `STORE-${Math.random().toString(36).substring(7).toUpperCase()}`,
-                created_at: new Date().toISOString(),
-                delivery_address: item.deliveryAddress // se o item necessita envio
-            });
-        } else {
-            // PARA PIX: CRIA NA redemption_requests (se a tabela existir) ou spin_history
-            await supabase.from('spin_history').insert({
-                user_id: user.id,
+                user_id: user.user.id,
                 prize_name: item.name,
                 prize_type: item.type,
                 prize_value: item.moneyValue || 0, 
@@ -390,8 +364,55 @@ export const api = {
                 created_at: new Date().toISOString()
             });
         }
+        
         return true;
+    },
+
+    exchangeCoinsForSpins: async (): Promise<boolean> => {
+        return api.game.purchaseStoreItem({ name: 'Giro Extra', cost: 100, type: 'spins', id: 'spin-1' });
     }
+  },
+
+  ranking: {
+      getMonthlyRanking: async (): Promise<RankingEntry[]> => {
+          const { data: { user } } = await supabase.auth.getUser();
+          
+          const { data: topProfiles } = await supabase
+            .from('profiles')
+            .select('id, full_name, invite_count, avatar_id')
+            .order('invite_count', { ascending: false })
+            .limit(50);
+            
+          let mockRanking: RankingEntry[] = (topProfiles || []).map((p: any, index: number) => ({
+              rank: index + 1,
+              user_id: p.id,
+              full_name: p.full_name,
+              avatar_seed: p.avatar_id,
+              invites: p.invite_count,
+              is_current_user: p.id === user?.id,
+              trend: Math.random() > 0.5 ? 'up' : 'same'
+          }));
+
+          if (user && !mockRanking.find(r => r.user_id === user.id)) {
+              const { data: myProfile } = await supabase.from('profiles').select('invite_count, full_name, avatar_id').eq('id', user.id).single();
+              if (myProfile) {
+                  const fakeRank = 50 + Math.floor(Math.random() * 500); 
+                  mockRanking.push({
+                      rank: fakeRank,
+                      user_id: user.id,
+                      full_name: myProfile.full_name || 'Usuário',
+                      avatar_seed: myProfile.avatar_id,
+                      invites: myProfile.invite_count || 0,
+                      is_current_user: true,
+                      trend: 'same'
+                  });
+              }
+          }
+          
+          mockRanking.sort((a, b) => b.invites - a.invites);
+          
+          return mockRanking.map((r, i) => ({...r, rank: i + 1}));
+      }
   },
 
   challenges: {
@@ -402,23 +423,83 @@ export const api = {
       uploadProof: async (file: File): Promise<string> => {
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) throw new Error("Usuário não autenticado");
+
           const fileExt = file.name.split('.').pop();
           const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-          const { error: uploadError } = await supabase.storage.from('proofs').upload(fileName, file, { cacheControl: '3600', upsert: false });
-          if (uploadError) throw new Error("Falha no upload.");
+
+          const { error: uploadError } = await supabase.storage
+              .from('proofs')
+              .upload(fileName, file, { cacheControl: '3600', upsert: false });
+
+          if (uploadError) throw new Error("Falha no upload da imagem.");
+
           const { data } = supabase.storage.from('proofs').getPublicUrl(fileName);
           return data.publicUrl;
       },
-      
-      // Envio de prova manual para análise de Admin
+      claim: async (challengeId: string) => {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return { data: { success: false } };
+          
+          const { data: existing } = await supabase.from('user_challenges')
+            .select('status')
+            .eq('user_id', user.id)
+            .eq('challenge_id', challengeId)
+            .single();
+            
+          if (existing?.status === 'claimed') return { data: { success: false } };
+
+          const { error } = await supabase.from('user_challenges')
+            .update({ status: 'claimed' })
+            .eq('user_id', user.id)
+            .eq('challenge_id', challengeId);
+          
+          if(error) throw error;
+
+          const { data: challenge } = await supabase.from('challenges').select('*').eq('id', challengeId).single();
+          if(challenge) {
+               await distributeRewards(user.id, challenge);
+          }
+
+          return { data: { success: true } }; 
+      },
       submitProof: async (challengeId: string, proof: string) => {
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) return;
-          
-          // Apenas insere/atualiza. O status 'in_progress' indica que precisa de validação
+
           const { data: existing } = await supabase.from('user_challenges')
             .select('id, status').eq('user_id', user.id).eq('challenge_id', challengeId).maybeSingle();
             
+          if (proof === 'AUTO_VISIT') {
+              const { data: challenge } = await supabase.from('challenges').select('*').eq('id', challengeId).single();
+              
+              if (challenge) {
+                  const nowIso = new Date().toISOString();
+                  if (existing) {
+                      await supabase.from('user_challenges').update({
+                          status: 'claimed',
+                          progress: 100,
+                          current_value: challenge.goal,
+                          verification_proof: 'AUTO_VISIT',
+                          last_update: nowIso, 
+                          updated_at: nowIso
+                      }).eq('id', existing.id);
+                  } else {
+                      await supabase.from('user_challenges').insert({
+                          user_id: user.id,
+                          challenge_id: challengeId,
+                          status: 'claimed',
+                          progress: 100,
+                          current_value: challenge.goal,
+                          verification_proof: 'AUTO_VISIT',
+                          last_update: nowIso, 
+                          updated_at: nowIso
+                      });
+                  }
+                  await distributeRewards(user.id, challenge);
+              }
+              return;
+          }
+
           if (existing) {
              return await supabase.from('user_challenges').update({
                  status: 'in_progress', verification_proof: proof, updated_at: new Date().toISOString()
@@ -429,144 +510,359 @@ export const api = {
              });
           }
       },
-      
-      // SERVER-SIDE CHECK ACTION: O frontend apenas avisa "aconteceu isso"
-      checkAction: async (actionType: string): Promise<Challenge[]> => {
-          try {
-              const { data, error } = await supabase.rpc('check_challenge_action', { action_name: actionType });
-              if (error) {
-                console.error('Erro ao verificar ação:', error);
-                throw error;
-              }
-              console.log(`Ação '${actionType}' verificada:`, data);
-              return data || [];
-          } catch (e) {
-              console.warn("Check action RPC failed:", e);
-              return [];
+      checkAction: async (actionType: string, forceIncrement: boolean = false): Promise<Challenge[]> => {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return [];
+
+          if (actionType === 'login') {
+              await supabase.rpc('process_daily_login');
           }
+
+          const pad2 = (n: number) => String(n).padStart(2, '0');
+          const dayKey = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+          const monthKey = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+          const weekKey = (d: Date) => {
+            const x = new Date(d);
+            x.setHours(0, 0, 0, 0);
+            const dow = (x.getDay() + 6) % 7; // Mon=0
+            x.setDate(x.getDate() - dow);
+            return dayKey(x);
+          };
+          const cycleKey = (type: string, d: Date) => {
+            if (type === 'daily') return dayKey(d);
+            if (type === 'weekly') return weekKey(d);
+            if (type === 'monthly') return monthKey(d);
+            return 'STATIC';
+          };
+
+          const { data: profile } = await supabase.from('profiles').select('invite_count, login_count').eq('id', user.id).single();
+          const currentInviteCount = profile?.invite_count || 0;
+          const totalLoginCount = profile?.login_count || 0;
+
+          const { data: challenges } = await supabase
+            .from('challenges')
+            .select('*')
+            .eq('category', actionType) 
+            .eq('active', true);
+
+          if (!challenges || challenges.length === 0) return [];
+
+          const completedNow: Challenge[] = [];
+          const now = new Date();
+
+          for (const challenge of challenges) {
+              
+              if (challenge.category === 'login') {
+                  const t = challenge.title.toLowerCase();
+                  if (t.includes('diário') || t.includes('veterano') || t.includes('maratona')) {
+                      continue; 
+                  }
+              }
+
+              let { data: existing } = await supabase
+                .from('user_challenges')
+                .select('*')
+                .eq('user_id', user.id)
+                .eq('challenge_id', challenge.id)
+                .maybeSingle();
+
+              let shouldReset = false;
+              if (existing && (challenge.type === 'daily' || challenge.type === 'weekly' || challenge.type === 'monthly')) {
+                  const lastUpdate = new Date(existing.last_update || existing.updated_at || existing.created_at || 0);
+                  const keyLast = cycleKey(challenge.type, lastUpdate);
+                  const keyNow = cycleKey(challenge.type, now);
+                  
+                  if (keyLast !== keyNow) {
+                      shouldReset = true;
+                  }
+              }
+
+              if (shouldReset && existing) {
+                  await supabase.from('user_challenges').update({
+                      current_value: 0,
+                      status: 'in_progress', 
+                      progress: 0,
+                      verification_proof: null, 
+                      last_update: now.toISOString(),
+                      updated_at: now.toISOString()
+                  }).eq('id', existing.id);
+                  
+                  const { data: updated } = await supabase.from('user_challenges').select('*').eq('id', existing.id).single();
+                  existing = updated;
+              }
+
+              let newValue = (existing?.current_value || 0);
+              let shouldUpdate = false;
+
+              if (existing && existing.status === 'claimed' && !shouldReset) {
+                  continue;
+              }
+
+              let isComplete = newValue >= challenge.goal;
+
+              if (existing && existing.status === 'completed' && isComplete && !shouldReset) {
+                  shouldUpdate = true;
+              }
+
+              if (challenge.type === 'career' || challenge.type === 'permanent') {
+                  if (actionType === 'check_invites' && newValue !== currentInviteCount) {
+                      newValue = currentInviteCount;
+                      shouldUpdate = true;
+                  }
+                  if (actionType === 'login' && newValue !== totalLoginCount) {
+                      newValue = totalLoginCount;
+                      shouldUpdate = true;
+                  }
+              } else {
+                  if (forceIncrement || actionType === 'spin') {
+                      newValue = newValue + 1;
+                      shouldUpdate = true;
+                  } else if (actionType === 'login' && challenge.type === 'daily') {
+                      if (newValue < 1) {
+                          newValue = 1;
+                          shouldUpdate = true;
+                      }
+                  }
+              }
+
+              isComplete = newValue >= challenge.goal;
+
+              if (!existing) {
+                  let startVal = 0;
+                  if (challenge.type === 'career' || challenge.type === 'permanent') {
+                      if (actionType === 'check_invites') startVal = currentInviteCount;
+                      if (actionType === 'login') startVal = totalLoginCount;
+                  } else {
+                      if (actionType === 'spin' || forceIncrement) startVal = 1;
+                      if (actionType === 'login' && challenge.type === 'daily') startVal = 1;
+                  }
+
+                  isComplete = startVal >= challenge.goal;
+                  
+                  await supabase.from('user_challenges').insert({
+                      user_id: user.id,
+                      challenge_id: challenge.id,
+                      status: isComplete ? 'claimed' : 'in_progress',
+                      progress: isComplete ? 100 : Math.floor((startVal / challenge.goal) * 100),
+                      current_value: startVal,
+                      last_update: now.toISOString(),
+                      updated_at: now.toISOString()
+                  });
+                  if (isComplete) {
+                      await distributeRewards(user.id, challenge);
+                      completedNow.push(challenge);
+                  }
+
+              } else if (shouldUpdate) {
+                  const newStatus = isComplete ? 'claimed' : 'in_progress';
+
+                  await supabase.from('user_challenges').update({
+                      current_value: newValue,
+                      progress: Math.min(Math.floor((newValue / challenge.goal) * 100), 100),
+                      status: newStatus,
+                      last_update: now.toISOString(),
+                      updated_at: now.toISOString()
+                  }).eq('id', existing.id);
+
+                  if (isComplete && existing.status !== 'completed' && existing.status !== 'claimed') {
+                      await distributeRewards(user.id, challenge);
+                      completedNow.push(challenge);
+                  }
+              }
+          }
+
+          return completedNow;
       },
       
       getCompletedReadyToClaim: async (): Promise<Challenge[]> => {
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) return [];
-          const { data } = await supabase.from('user_challenges').select(`*, challenges (*)`).eq('user_id', user.id).eq('status', 'completed'); 
-          return data ? data.map((d: any) => d.challenges) : [];
-      }
-  },
-  
-  missions: {
-      sync: async (): Promise<Mission[]> => {
-          try {
-              const { data, error } = await supabase.rpc('sync_user_missions');
-              if (error) throw error;
-              console.log('Missões sincronizadas:', data);
-              return data || [];
-          } catch(e) {
-              console.error('Erro ao sincronizar missões:', e);
-              return [];
-          }
-      },
-      
-      // Esta função chama o RPC que contém toda a lógica de reset diário/semanal
-      // e verificação de recompensa. Sem lógica no frontend.
-      registerVisit: async (challengeId: string) => {
-          const { error } = await supabase.rpc('register_visit_action', { p_challenge_id: challengeId });
-          if (error) {
-              console.error("Visit RPC Error:", error);
-              throw new Error("Erro ao registrar visita. Tente novamente.");
-          }
-      },
 
-      claimReward: async (userChallengeId: string) => {
-          const { data, error } = await supabase.rpc('claim_mission_reward', { user_challenge_id: userChallengeId });
-          if(error) return { success: false, message: error.message };
-          return data;
+          const { data, error } = await supabase
+            .from('user_challenges')
+            .select(`*, challenges (*)`)
+            .eq('user_id', user.id)
+            .eq('status', 'completed'); 
+
+          if (error || !data) return [];
+          
+          const uniqueChallenges = new Map();
+          data.forEach((item: any) => {
+              const ch = Array.isArray(item.challenges) ? item.challenges[0] : item.challenges;
+              if (ch && !uniqueChallenges.has(ch.id)) {
+                  uniqueChallenges.set(ch.id, ch);
+              }
+          });
+          return Array.from(uniqueChallenges.values());
       },
       
-      submitProof: async (challengeId: string, proof: string) => {
-          return api.challenges.submitProof(challengeId, proof);
+      validateChallenge: async (id: string, approved: boolean) => {
+          if(!approved) {
+              await supabase.from('user_challenges').update({ status: 'pending', verification_proof: null }).eq('id', id);
+              return;
+          }
+          
+          const { data: uc, error } = await supabase
+            .from('user_challenges')
+            .select('*, challenges(*)')
+            .eq('id', id)
+            .single();
+            
+          if(error || !uc) throw new Error("Challenge info not found");
+          
+          const challenge = Array.isArray(uc.challenges) ? uc.challenges[0] : uc.challenges;
+          if(!challenge) throw new Error("Challenge details missing");
+          
+          const nowIso = new Date().toISOString();
+          const { error: updateError } = await supabase.from('user_challenges').update({ 
+              status: 'claimed', 
+              progress: 100, 
+              current_value: challenge.goal || 1, 
+              last_update: nowIso,
+              updated_at: nowIso 
+          }).eq('id', id);
+          
+          if (updateError) throw updateError;
+          
+          await distributeRewards(uc.user_id, challenge);
       },
-      
-      uploadProof: async (file: File) => api.challenges.uploadProof(file)
   },
   
   admin: {
       getAuditLogs: async () => {
-          const { data } = await supabase.from('admin_audit').select(`*, profiles:admin_id (full_name)`).order('created_at', { ascending: false });
-          return data?.map((d: any) => ({ ...d, timestamp: d.created_at, admin_name: d.profiles?.full_name || 'Admin' })) || [];
+          const { data, error } = await supabase
+            .from('admin_audit')
+            .select(`*, profiles:admin_id (full_name)`)
+            .order('created_at', { ascending: false });
+          if (error) return [];
+          return data.map((d: any) => ({ ...d, timestamp: d.created_at, admin_name: d.profiles?.full_name || 'Sistema/Admin' }));
       },
       getPendingChallengeProofs: async () => {
-          const { data } = await supabase.from('user_challenges').select(`*, profiles:user_id(full_name, email), challenges:challenge_id(title, reward_xp, reward_money, reward_spins)`).eq('status', 'in_progress').not('verification_proof', 'is', null);
+          const { data, error } = await supabase
+            .from('user_challenges')
+            .select(`*, profiles:user_id ( full_name, email ), challenges:challenge_id ( title, reward_xp, reward_money, reward_spins )`)
+            .eq('status', 'in_progress')
+            .not('verification_proof', 'is', null);
+          if(error) throw error;
           return data || [];
       },
       validateChallenge: async (id: string, approved: boolean) => {
-          try {
-              const { error } = await supabase.rpc('admin_validate_challenge', { uc_id: id, is_approved: approved });
-              if (error) throw error;
-          } catch (e) {
-              if(!approved) {
-                  await supabase.from('user_challenges').update({ status: 'pending', verification_proof: null }).eq('id', id);
-              } else {
-                  const { data: uc } = await supabase.from('user_challenges').select('*, challenges(*)').eq('id', id).single();
-                  if(uc) {
-                      await supabase.from('user_challenges').update({ status: 'claimed', progress: 100, current_value: uc.challenges.goal }).eq('id', uc.id);
-                      await supabase.rpc('distribute_challenge_reward', { 
-                          target_user_id: uc.user_id, 
-                          r_spins: uc.challenges.reward_spins || 0,
-                          r_money: uc.challenges.reward_money || 0,
-                          r_xp: uc.challenges.reward_xp || 0
-                      });
-                  }
-              }
-          }
+          return api.challenges.validateChallenge(id, approved);
       },
       getRedemptionRequests: async (statusFilter?: string): Promise<AdminRedemptionRequest[]> => {
           let query = supabase.from('spin_history').select(`*, profiles:user_id (full_name, cpf, phone, last_ip)`).order('created_at', { ascending: false });
           if (statusFilter) query = query.eq('status', statusFilter);
           else query = query.eq('status', 'requested');
 
-          const { data } = await query;
-          return (data || []).map((item: any) => ({
+          const { data, error } = await query;
+          if (error) return [];
+
+          const cleanData = data.filter((item: any) => {
+              const name = item.prize_name ? item.prize_name.toLowerCase() : '';
+              const isLoss = name.includes('tente') || name.includes('não foi') || name.includes('azar') || name.includes('loss');
+              return !isLoss;
+          });
+
+          return cleanData.map((item: any) => ({
               ...item, timestamp: item.created_at, prize_value: item.prize_value || 0,
-              user_details: { full_name: item.profiles?.full_name || 'N/A', cpf: item.profiles?.cpf || 'N/A', phone: item.profiles?.phone || 'N/A', ip_address: item.profiles?.last_ip || 'N/A' }
+              user_details: { full_name: item.profiles?.full_name || 'Desconhecido', cpf: item.profiles?.cpf || 'N/A', phone: item.profiles?.phone || 'N/A', ip_address: item.profiles?.last_ip || 'N/A' }
           }));
       },
       updateRedemptionStatus: async (historyId: string, newStatus: string) => {
-          await supabase.from('spin_history').update({ status: newStatus }).eq('id', historyId);
+          const { error } = await supabase.from('spin_history').update({ status: newStatus }).eq('id', historyId);
+          if(error) throw error;
+          await api.admin.logAction('UPDATE_REDEMPTION', historyId, { new_status: newStatus });
       },
       getUsers: async () => {
-          const { data } = await supabase.from('profiles').select('*'); 
-          return (data || []).map((u: any) => ({
-             ...u, is_admin: u.role === 'admin', available_spins: u.spins_remaining || 0, lux_coins: u.wallet_balance || 0, wallet_balance: u.wallet_balance || 0, referral_code: u.invite_code
+          const { data, error } = await supabase.from('profiles').select('*'); 
+          if (error) throw error;
+          return data.map((u: any) => ({
+             ...u, is_admin: u.role === 'admin', available_spins: u.spins_remaining || 0, lux_coins: u.wallet_balance || 0, wallet_balance: u.wallet_balance || 0, referral_code: u.invite_code, ip_address: u.last_ip || 'N/A', is_banned: u.banned || false, login_count: u.login_count || 0
           }));
       },
-      updateUser: async (userId: string, data: any) => {
-          await supabase.from('profiles').update(data).eq('id', userId);
+      updateUser: async (userId: string, updates: { full_name?: string, phone?: string, cpf?: string, email?: string, lux_coins?: number, available_spins?: number }): Promise<void> => {
+           const dbUpdates: any = {};
+           if (updates.full_name) dbUpdates.full_name = updates.full_name;
+           if (updates.phone) dbUpdates.phone = updates.phone;
+           if (updates.cpf) dbUpdates.cpf = updates.cpf;
+           if (updates.email) dbUpdates.email = updates.email;
+
+           if (Object.keys(dbUpdates).length > 0) {
+                const { error } = await supabase.from('profiles').update(dbUpdates).eq('id', userId);
+                if (error) throw error;
+           }
+
+           if (updates.lux_coins !== undefined || updates.available_spins !== undefined) {
+               const { error: rpcError } = await supabase.rpc('admin_update_balance', {
+                   target_user_id: userId,
+                   new_coins: updates.lux_coins !== undefined ? updates.lux_coins : null,
+                   new_spins: updates.available_spins !== undefined ? updates.available_spins : null
+               });
+               if (rpcError) throw rpcError;
+           }
+
+           await api.admin.logAction('UPDATE_USER_PROFILE', userId, updates);
       },
       logAction: async (action: string, target: string, details: any) => {
           const { data: { user } } = await supabase.auth.getUser();
           if (user) await supabase.from('admin_audit').insert({ admin_id: user.id, action, target, details });
       },
       addSpins: async (userId: string, amount: number) => {
-          const { data: u } = await supabase.from('profiles').select('spins_remaining').eq('id', userId).single();
-          if(u) await supabase.from('profiles').update({ spins_remaining: (u.spins_remaining || 0) + amount }).eq('id', userId);
+          const { error } = await supabase.rpc('admin_update_balance', {
+              target_user_id: userId,
+              add_spins: amount
+          });
+          if (error) throw error;
+          await api.admin.logAction('ADD_SPINS', userId, { amount });
       },
       addLuxCoins: async (userId: string, amount: number) => {
-          const { data: u } = await supabase.from('profiles').select('wallet_balance').eq('id', userId).single();
-          if(u) await supabase.from('profiles').update({ wallet_balance: (u.wallet_balance || 0) + amount }).eq('id', userId);
+          const { error } = await supabase.rpc('admin_update_balance', {
+              target_user_id: userId,
+              add_coins: amount
+          });
+          if (error) throw error;
+          await api.admin.logAction('ADD_COINS', userId, { amount });
       },
       banUser: async (userId: string, status: boolean) => {
           await supabase.from('profiles').update({ banned: status }).eq('id', userId);
+          await api.admin.logAction(status ? 'BAN_USER' : 'UNBAN_USER', userId, {});
       },
       banIp: async (ip: string) => {
-          await supabase.from('banned_ips').insert({ ip_address: ip });
+          const { error } = await supabase.from('banned_ips').insert({ ip_address: ip });
+          if (!error) await api.admin.logAction('BAN_IP', ip, {});
       },
       getThemeConfig: async (): Promise<SystemThemeConfig> => {
-          const { data } = await supabase.from('system_settings').select('value').eq('key', 'active_theme').single();
+          const { data, error } = await supabase.from('system_settings').select('value').eq('key', 'active_theme').single();
+          if (error) throw error;
           return (data?.value as SystemThemeConfig) || { active: false, name: 'default' };
       },
       updateThemeConfig: async (config: SystemThemeConfig): Promise<void> => {
-          await supabase.from('system_settings').upsert({ key: 'active_theme', value: config });
+          const { error } = await supabase.from('system_settings').upsert({ key: 'active_theme', value: config });
+          if (error) throw error;
+          await api.admin.logAction('UPDATE_THEME', 'system', { theme: config.name });
+      },
+      // Funções para Controle de IP
+      getIpUsageStats: async () => {
+          const { data, error } = await supabase.rpc('get_ip_usage_stats');
+          if (error) throw error;
+          return data;
+      },
+      getIpConfig: async () => {
+          const { data, error } = await supabase.rpc('get_ip_config');
+          if (error) throw error;
+          return data;
+      },
+      updateIpLimit: async (limit: number, active: boolean) => {
+          const { error } = await supabase.rpc('update_ip_limit', { p_new_limit: limit, p_is_active: active });
+          if (error) throw error;
+      },
+      addIpWhitelist: async (ip: string, reason: string) => {
+          const { error } = await supabase.rpc('add_ip_whitelist', { p_ip_address: ip, p_reason: reason });
+          if (error) throw error;
+      },
+      removeIpWhitelist: async (id: string) => {
+          const { error } = await supabase.rpc('remove_ip_whitelist', { p_id: id });
+          if (error) throw error;
       }
   }
 };

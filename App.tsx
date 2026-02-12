@@ -1,6 +1,6 @@
 
 import React, { useEffect } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Box, CircularProgress } from '@mui/material';
 import Navigation from './components/Navigation';
 import Footer from './components/Footer';
@@ -15,13 +15,18 @@ import Register from './pages/Register';
 import Login from './pages/Login';
 import SupportAvatar from './components/SupportAvatar';
 import ThemeInjector from './components/ThemeInjector';
+import Maintenance from './components/Maintenance';
 import { PageRoute } from './types';
-import { LanguageProvider } from './hooks/useLanguage';
+import { LanguageProvider, useLanguage } from './hooks/useLanguage';
 import { useAuth } from './contexts/AuthContext';
+import { useThemeConfig } from './contexts/ThemeContext';
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const { user, loading, logout, setUser } = useAuth();
+  const { themeConfig } = useThemeConfig();
+  const { t } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Intercepta hash de erro do Supabase que quebra o HashRouter
   useEffect(() => {
@@ -36,11 +41,12 @@ const App: React.FC = () => {
         if (errorCode || errorDesc) {
             console.error("Supabase Auth Redirect Error:", errorCode, errorDesc);
             navigate(PageRoute.LOGIN);
-            localStorage.setItem('auth_error', decodeURIComponent(errorDesc || 'Erro desconhecido na autenticação.'));
+            localStorage.setItem('auth_error', decodeURIComponent(errorDesc || t('auth_err_unknown')));
         }
     }
-  }, [navigate]);
+  }, [navigate, t]);
 
+  // Se estiver carregando auth, mostra loader
   if (loading) {
       return (
           <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#050510' }}>
@@ -49,8 +55,20 @@ const App: React.FC = () => {
       )
   }
 
+  // --- LÓGICA DE MANUTENÇÃO ---
+  // Se manutenção ativa E usuário não é admin
+  if (themeConfig.maintenance_mode && !user?.is_admin) {
+      // PERMITE APENAS ROTA DE LOGIN (Backdoor)
+      if (location.pathname === PageRoute.LOGIN) {
+          return <Login setUser={setUser} />;
+      }
+      
+      // Qualquer outra rota mostra a tela de manutenção
+      return <Maintenance />;
+  }
+
   return (
-    <LanguageProvider>
+    <>
         <ThemeInjector />
         <Box display="flex" flexDirection="column" minHeight="100vh" bgcolor="#050510" color="white">
             <Navigation user={user} onLogout={logout} />
@@ -72,8 +90,15 @@ const App: React.FC = () => {
             <SupportAvatar />
             <Footer />
         </Box>
-    </LanguageProvider>
+    </>
   );
 };
+
+const App: React.FC = () => (
+    <LanguageProvider>
+        <AppContent />
+    </LanguageProvider>
+)
+
 
 export default App;

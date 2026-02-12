@@ -12,9 +12,10 @@ import { useThemeConfig } from '../contexts/ThemeContext';
 interface RouletteTimerProps {
   timerDate: string | null | undefined;
   spinsRemaining: number;
+  className?: string;
 }
 
-const RouletteTimer: React.FC<RouletteTimerProps> = ({ timerDate, spinsRemaining }) => {
+const RouletteTimer: React.FC<RouletteTimerProps> = ({ timerDate, spinsRemaining, className }) => {
   const { t } = useLanguage();
   const { refreshUser } = useAuth();
   const { themeConfig } = useThemeConfig();
@@ -31,7 +32,12 @@ const RouletteTimer: React.FC<RouletteTimerProps> = ({ timerDate, spinsRemaining
   };
 
   return (
-    <Box sx={{ position: 'relative', mb: 4 }}>
+    <Box className={className} sx={{ 
+        position: 'relative', 
+        mb: 4,
+        aspectRatio: 'auto', // Override for bento card
+        minHeight: 'unset' // Override for bento card
+    }}>
         {/* Glow Background */}
         <Box sx={{
             position: 'absolute',

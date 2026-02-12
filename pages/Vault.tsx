@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Box, Container, Typography, Paper, Button, CircularProgress, Alert, Chip, Grid } from '@mui/material';
 import { Diamond, Handshake } from '@mui/icons-material';
@@ -8,10 +7,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { useThemeConfig } from '../contexts/ThemeContext';
 
 const getStoreItems = (t: any) => [
-    { id: 'spin-pack-1', name: t('store_item_spin_name'), description: t('store_item_spin_desc'), cost: 100, type: 'spins' as const, image: 'https://images.unsplash.com/photo-1605901309584-818e25960b8f?q=80&w=1000&auto=format&fit=crop', highlight: false, label: t('label_virtual') },
-    { id: 'FOO36-BRA', name: t('store_item_headphone_name'), description: t('store_item_headphone_desc'), cost: 1000, type: 'physical' as const, image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1000&auto=format&fit=crop', highlight: true, label: t('label_physical') },
-    { id: 'FOO42-BRA', name: t('store_item_earbuds_name'), description: t('store_item_earbuds_desc'), cost: 1500, type: 'physical' as const, image: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?q=80&w=1000&auto=format&fit=crop', highlight: true, label: t('label_physical') },
-    { id: 'CASH-500', name: t('store_item_money_name'), description: t('store_item_money_desc', { amount: '500,00' }), cost: 3500, type: 'money' as const, moneyValue: 500, image: 'https://images.unsplash.com/photo-1580519542036-c47de6196ba5?q=80&w=1000&auto=format&fit=crop', highlight: true, label: t('label_money') }
+    { id: 'spin-pack-1', name: t('store_item_spin_name'), description: t('store_item_spin_desc'), cost: 500, type: 'spins' as const, image: 'giro.png', highlight: false, label: t('label_virtual') },
+    { id: 'FOO36-BRA', name: t('store_item_headphone_name'), description: t('store_item_headphone_desc'), cost: 2500, type: 'physical' as const, image: 'fone1.png', highlight: true, label: t('label_physical') },
+    { id: 'FOO42-BRA', name: t('store_item_earbuds_name'), description: t('store_item_earbuds_desc'), cost: 3500, type: 'physical' as const, image: 'fone2.png', highlight: true, label: t('label_physical') },
+    { id: 'CASH-500', name: t('store_item_money_name'), description: t('store_item_money_desc', { amount: '500,00' }), cost: 6000, type: 'money' as const, moneyValue: 500, image: 'money.png', highlight: true, label: t('label_money') }
 ];
 
 const Vault: React.FC = () => {

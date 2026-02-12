@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Box, TextField, Button, Typography, Container, Paper, InputAdornment, IconButton, Alert, CircularProgress } from '@mui/material';
 import { useForm } from 'react-hook-form';
@@ -8,23 +7,32 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../hooks/useLanguage';
 import { api } from '../services/api';
 import { PageRoute, UserProfile } from '../types';
-import { Visibility, VisibilityOff, ArrowBack, Diamond, MarkEmailRead } from '@mui/icons-material';
+import { Visibility, VisibilityOff, ArrowBack, MarkEmailRead } from '@mui/icons-material';
+import { motion } from 'framer-motion';
 
-// Validador simples para feedback visual rápido, mas a validação real ocorre no api.ts
 const isValidCPFFormat = (cpf: string) => {
     cpf = cpf.replace(/[^\d]+/g, '');
     return cpf.length === 11 && !/^(\d)\1+$/.test(cpf);
 };
 
+const getOrCreateDeviceId = (): string => {
+  const key = 'device_id';
+  let id = localStorage.getItem(key);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(key, id);
+  }
+  return id;
+};
+
 const registerSchema = z.object({
   full_name: z.string().min(3, "Nome muito curto").refine(val => val.trim().split(/\s+/).length >= 2, "Digite seu nome completo (Nome e Sobrenome)"),
   cpf: z.string().refine(isValidCPFFormat, "Formato de CPF inválido"),
-  phone: z.string().min(14, "Telefone incompleto").max(15, "Telefone inválido"), // Aceita (XX) 9XXXX-XXXX
+  phone: z.string().min(14, "Telefone incompleto").max(15, "Telefone inválido"),
   email: z.string().email("Email inválido"),
   password: z.string().min(6, "Mínimo 6 caracteres"),
   confirmPassword: z.string(),
   inviteCode: z.string().optional(),
-  // Campo Honeypot - deve vir vazio
   website: z.string().optional() 
 }).refine((data) => data.password === data.confirmPassword, {
   message: "As senhas não conferem",
@@ -47,16 +55,16 @@ const Register: React.FC<RegisterProps> = ({ setUser }) => {
     resolver: zodResolver(registerSchema),
     defaultValues: {
         inviteCode: searchParams.get('code') || '',
-        website: '' // Inicializa vazio
+        website: ''
     }
   });
 
   const onSubmit = async (data: RegisterFormData) => {
     setGlobalError(null);
     try {
-      // Remove formatação para enviar para a API (mantém apenas números)
       const cleanPhone = data.phone.replace(/\D/g, '');
       const cleanCpf = data.cpf.replace(/\D/g, '');
+      const deviceId = getOrCreateDeviceId();
 
       const user = await api.auth.register({
         full_name: data.full_name.toUpperCase(),
@@ -65,7 +73,8 @@ const Register: React.FC<RegisterProps> = ({ setUser }) => {
         phone: cleanPhone,
         password: data.password,
         inviteCode: data.inviteCode,
-        honeypot: data.website // Envia o valor do honeypot para a API verificar
+        honeypot: data.website,
+        deviceId: deviceId,
       });
       setUser(user);
       navigate(PageRoute.DASHBOARD);
@@ -73,36 +82,33 @@ const Register: React.FC<RegisterProps> = ({ setUser }) => {
       if (error.message === 'CONFIRM_EMAIL') {
           setSuccessMessage(true);
       } else {
-          setGlobalError(error.message || "Erro ao criar conta.");
+          setGlobalError(t(error.message) || t('err_create_account'));
       }
     }
   };
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      // Força caixa alta
       const upper = e.target.value.toUpperCase();
       setValue('full_name', upper, { shouldValidate: true });
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       let value = e.target.value.replace(/\D/g, "");
-      
-      // Máscara (DD) 9XXXX-XXXX
       if (value.length > 11) value = value.substring(0, 11);
-      
-      if (value.length > 2) {
-          value = `(${value.substring(0, 2)}) ${value.substring(2)}`;
-      }
-      if (value.length > 10) {
-          value = `${value.substring(0, 10)}-${value.substring(10)}`;
-      }
-      
+      if (value.length > 2) value = `(${value.substring(0, 2)}) ${value.substring(2)}`;
+      if (value.length > 10) value = `${value.substring(0, 10)}-${value.substring(10)}`;
       setValue('phone', value, { shouldValidate: true });
   };
 
   const inputStyle = {
-      '& .MuiOutlinedInput-root': { bgcolor: 'rgba(0,0,0,0.2)' },
+      '& .MuiOutlinedInput-root': { 
+          bgcolor: 'rgba(0,0,0,0.3)',
+          '& fieldset': { borderColor: 'rgba(212, 175, 55, 0.2)' },
+          '&:hover fieldset': { borderColor: 'rgba(212, 175, 55, 0.5)' },
+          '&.Mui-focused fieldset': { borderColor: '#D4AF37' },
+      },
       '& label': { color: '#888' },
+      '& label.Mui-focused': { color: '#D4AF37' },
       '& input': { color: '#FFF' }
   };
 
@@ -117,31 +123,47 @@ const Register: React.FC<RegisterProps> = ({ setUser }) => {
       bgcolor: '#050510',
       py: 4
     }}>
-      {/* Background FX */}
-      <Box sx={{ position: 'absolute', inset: 0, zIndex: 0 }}>
-          <Box sx={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at center, transparent 0%, #050510 100%)', zIndex: 2 }} />
-          <Box sx={{ position: 'absolute', top: '-10%', right: '-10%', width: '50vw', height: '50vw', background: 'radial-gradient(circle, rgba(212, 175, 55, 0.08) 0%, transparent 70%)', filter: 'blur(80px)' }} />
-      </Box>
+        {/* Background Video */}
+        <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            style={{
+                position: 'absolute',
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                zIndex: 0,
+                opacity: 0.3
+            }}
+            src="/videos/gold-particles.mp4"
+        />
+        <Box sx={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle, transparent 0%, #050510 80%)', zIndex: 1 }} />
 
       <Container maxWidth="sm" sx={{ position: 'relative', zIndex: 10 }}>
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+        >
         <Paper elevation={0} sx={{ 
             p: { xs: 4, md: 6 }, 
             borderRadius: 4, 
-            bgcolor: 'rgba(255,255,255,0.02)',
+            bgcolor: 'rgba(5, 5, 16, 0.6)',
+            backdropFilter: 'blur(10px)',
             border: '1px solid rgba(212, 175, 55, 0.2)',
-            backdropFilter: 'blur(20px)',
             boxShadow: '0 20px 80px rgba(0,0,0,0.6)'
         }}>
           <Button startIcon={<ArrowBack />} onClick={() => navigate(PageRoute.LOGIN)} sx={{ mb: 3, color: '#AAA' }}>{t('login')}</Button>
           
-          <Box mb={4} display="flex" alignItems="center" gap={2}>
-              <Box p={1.5} borderRadius="50%" border="1px solid rgba(212, 175, 55, 0.5)" bgcolor="rgba(0,0,0,0.4)">
-                  <Diamond sx={{ color: '#D4AF37', fontSize: 28 }} />
-              </Box>
-              <Box>
-                  <Typography variant="overline" color="primary" sx={{ letterSpacing: 2, fontWeight: 700 }}>LUX BRASIL</Typography>
-                  <Typography variant="h4" sx={{ fontFamily: 'Montserrat', fontWeight: 800, color: '#FFF' }}>{t('register_title')}</Typography>
-              </Box>
+          <Box textAlign="center" mb={4}>
+            <Typography variant="h5" className="logo-shimmer" sx={{ fontFamily: 'Montserrat', fontWeight: 900, letterSpacing: 2, mb: 1 }}>
+                LUX BRASIL
+            </Typography>
+            <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 4 }}>
+                {t('register_title')}
+            </Typography>
           </Box>
           
           {successMessage ? (
@@ -153,7 +175,7 @@ const Register: React.FC<RegisterProps> = ({ setUser }) => {
                 <Typography variant="body1" color="text.secondary" paragraph>
                     Enviamos um link de confirmação exclusivo para o seu endereço.
                 </Typography>
-                <Alert severity="warning" sx={{ mt: 3, textAlign: 'left', border: '1px solid #ed6c02', bgcolor: 'rgba(237, 108, 2, 0.1)', color: '#ffb74d' }}>
+                <Alert severity="warning" variant="filled" sx={{ mt: 3, textAlign: 'left' }}>
                     <strong>Atenção:</strong> Procure por um e-mail da <u>LUX BRASIL</u>. Se não encontrar, verifique sua caixa de <strong>Spam</strong> ou Lixo Eletrônico.
                 </Alert>
                 <Button 
@@ -167,53 +189,15 @@ const Register: React.FC<RegisterProps> = ({ setUser }) => {
             </Box>
           ) : (
             <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
-                {globalError && <Alert severity="error" sx={{ mb: 2 }}>{globalError}</Alert>}
+                {globalError && <Alert severity="error" variant="filled" sx={{ mb: 2 }}>{globalError}</Alert>}
                 
-                {/* HONEYPOT FIELD (Hidden) - Anti-Bot */}
-                <TextField
-                    {...register('website')}
-                    sx={{ display: 'none' }}
-                    tabIndex={-1}
-                    autoComplete="off"
-                />
+                <TextField {...register('website')} sx={{ display: 'none' }} tabIndex={-1} autoComplete="off" />
 
-                <TextField 
-                    margin="normal" 
-                    required 
-                    fullWidth 
-                    label={t('name_label')} 
-                    placeholder="NOME COMPLETO"
-                    {...register('full_name')} 
-                    onChange={handleNameChange} // Sobrescreve onChange do register
-                    error={!!errors.full_name} 
-                    helperText={errors.full_name?.message} 
-                    sx={inputStyle} 
-                />
+                <TextField margin="normal" required fullWidth label={t('name_label')} placeholder="NOME COMPLETO" {...register('full_name')} onChange={handleNameChange} error={!!errors.full_name} helperText={errors.full_name?.message} sx={inputStyle} />
                 
                 <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }}>
-                    <TextField 
-                        margin="normal" 
-                        required 
-                        fullWidth 
-                        label={t('cpf_label')} 
-                        placeholder="000.000.000-00" 
-                        {...register('cpf')} 
-                        error={!!errors.cpf} 
-                        helperText={errors.cpf?.message} 
-                        sx={inputStyle} 
-                    />
-                    <TextField 
-                        margin="normal" 
-                        required 
-                        fullWidth 
-                        label={t('phone_label')} 
-                        placeholder="(DDD) 9XXXX-XXXX" 
-                        {...register('phone')} 
-                        onChange={handlePhoneChange} // Sobrescreve onChange do register para máscara
-                        error={!!errors.phone} 
-                        helperText={errors.phone?.message} 
-                        sx={inputStyle} 
-                    />
+                    <TextField margin="normal" required fullWidth label={t('cpf_label')} placeholder="000.000.000-00" {...register('cpf')} error={!!errors.cpf} helperText={errors.cpf?.message} sx={inputStyle} />
+                    <TextField margin="normal" required fullWidth label={t('phone_label')} placeholder="(DDD) 9XXXX-XXXX" {...register('phone')} onChange={handlePhoneChange} error={!!errors.phone} helperText={errors.phone?.message} sx={inputStyle} />
                 </Box>
                 
                 <TextField margin="normal" required fullWidth label="E-mail" {...register('email')} error={!!errors.email} helperText={errors.email?.message} sx={inputStyle} />
@@ -231,21 +215,14 @@ const Register: React.FC<RegisterProps> = ({ setUser }) => {
                     variant="contained" 
                     size="large" 
                     disabled={isSubmitting} 
-                    sx={{ 
-                        py: 2,
-                        borderRadius: 50,
-                        fontWeight: 800,
-                        background: 'linear-gradient(90deg, #D4AF37, #AA8C2C)',
-                        color: '#000',
-                        boxShadow: '0 0 25px rgba(212, 175, 55, 0.4)',
-                        '&:hover': { background: 'linear-gradient(90deg, #F3E5AB, #D4AF37)' }
-                    }}
+                    sx={{ py: 2, borderRadius: 50, fontWeight: 800, color: '#000' }}
                 >
                     {isSubmitting ? <CircularProgress size={24} color="inherit" /> : t('create_account_btn')}
                 </Button>
             </Box>
           )}
         </Paper>
+        </motion.div>
       </Container>
     </Box>
   );

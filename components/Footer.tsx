@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Box, Container, Typography, Link, IconButton, Divider, Stack, Grid } from '@mui/material';
 import { Facebook, Twitter, Instagram, YouTube, Email, Phone, Handshake } from '@mui/icons-material';
@@ -40,7 +39,7 @@ const Footer: React.FC = () => {
                 </Box>
                 <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.8, mb: 3, maxWidth: 300 }}>{t('footer_desc')}</Typography>
                 <Stack direction="row" spacing={1}>
-                    <SocialButton icon={<Instagram />} link="https://www.instagram.com/luxbr.oficial" />
+                    <SocialButton icon={<Instagram />} link="https://www.instagram.com/luxbrasiloficial/" />
                     <SocialButton icon={<Facebook />} />
                     <SocialButton icon={<Twitter />} />
                     <SocialButton icon={<YouTube />} />
